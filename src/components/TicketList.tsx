@@ -4,62 +4,43 @@ import TicketCard from "./TicketCard";
 interface TicketListProps {
   tickets: Ticket[];
   isLoading: boolean;
-  closingId: string | null;
-  onClose: (id: string) => void;
+  emptyMessage: string;
 }
 
-export default function TicketList({
-  tickets,
-  isLoading,
-  closingId,
-  onClose,
-}: TicketListProps) {
+export default function TicketList({ tickets, isLoading, emptyMessage }: TicketListProps) {
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[820px] text-left">
-          <thead className="bg-blue-600 text-white">
+    <div className="table-card">
+      <div className="table-scroll">
+        <table className="data-table">
+          <thead>
             <tr>
-              <th className="px-4 py-3 text-sm font-semibold">#</th>
-              <th className="px-4 py-3 text-sm font-semibold">Ticket ID</th>
-              <th className="px-4 py-3 text-sm font-semibold">Title</th>
-              <th className="px-4 py-3 text-sm font-semibold">Description</th>
-              <th className="px-4 py-3 text-sm font-semibold">Status</th>
-              <th className="px-4 py-3 text-sm font-semibold">Created At</th>
-              <th className="px-4 py-3 text-sm font-semibold">Action</th>
+              <th>Ticket ID</th>
+              <th>Subject</th>
+              <th>Process</th>
+              <th>Priority</th>
+              <th>Status</th>
+              <th>Created By</th>
+              <th>Assigned To</th>
+              <th>Created At</th>
+              <th className="th-actions">Actions</th>
             </tr>
           </thead>
 
           <tbody>
             {isLoading ? (
               <tr>
-                <td
-                  colSpan={7}
-                  className="px-4 py-10 text-center text-sm text-slate-500"
-                >
+                <td colSpan={9} className="table-empty">
                   Loading tickets...
                 </td>
               </tr>
             ) : tickets.length === 0 ? (
               <tr>
-                <td
-                  colSpan={7}
-                  className="px-4 py-10 text-center text-sm text-slate-500"
-                >
-                  No tickets yet. Click &quot;Add Ticket&quot; to create your
-                  first ticket.
+                <td colSpan={9} className="table-empty">
+                  {emptyMessage}
                 </td>
               </tr>
             ) : (
-              tickets.map((ticket, i) => (
-                <TicketCard
-                  key={ticket.id}
-                  ticket={ticket}
-                  index={i + 1}
-                  onClose={onClose}
-                  isClosing={closingId === ticket.id}
-                />
-              ))
+              tickets.map((ticket) => <TicketCard key={ticket.id} ticket={ticket} />)
             )}
           </tbody>
         </table>

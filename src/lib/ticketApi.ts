@@ -1,39 +1,61 @@
-import { CreateTicketInput, Ticket } from "@/types/ticket";
-
+import { apiFetch, postJson } from "@/lib/apiClient";
+import {
+  ActivityEntry,
+  CreateTicketInput,
+  Process,
+  Ticket,
+  TicketActionInput,
+  TicketAttachment,
+  TicketDetail,
+  TicketFilters,
+  TicketStats,
+} from "@/types/ticket";
+import { CreateReplyInput, TicketReply } from "@/types/reply";
 
 const API_URL = "/api/tickets";
+const ticketUrl = (id: string) => `${API_URL}/${encodeURIComponent(id)}`;
 
-async function handleResponse<T>(response: Response): Promise<T> {
-  if (!response.ok) {
-    let message = "Something went wrong";
-    try {
-      const data = await response.json();
-      if (data?.error) message = data.error;
-    } catch {
-     
-    }
-    throw new Error(message);
+export function listTickets(filters: TicketFilters = {}): Promise<Ticket[]> {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(filters)) {
+    if (value !== undefined && value !== "") query.set(key, String(value));
   }
-  return response.json() as Promise<T>;
+  const qs = query.toString();
+  return apiFetch<Ticket[]>(qs ? `${API_URL}?${qs}` : API_URL);
 }
 
-export async function createTicket(input: CreateTicketInput): Promise<Ticket> {
-  const response = await fetch(API_URL, {
+export const getTicketStats = () => apiFetch<TicketStats>(`${API_URL}/stats`);
+
+export const listProcesses = () => apiFetch<Process[]>("/api/processes");
+
+export const createTicket = (input: CreateTicketInput) =>
+  postJson<Ticket>(API_URL, input);
+
+export const getTicket = (id: string) => apiFetch<TicketDetail>(ticketUrl(id));
+
+export const performTicketAction = (id: string, input: TicketActionInput) =>
+  postJson<TicketDetail>(`${ticketUrl(id)}/actions`, input);
+
+export const listReplies = (id: string) =>
+  apiFetch<TicketReply[]>(`${ticketUrl(id)}/replies`);
+
+export const sendReply = (id: string, input: CreateReplyInput) =>
+  postJson<TicketReply>(`${ticketUrl(id)}/replies`, input);
+
+export const listActivity = (id: string) =>
+  apiFetch<ActivityEntry[]>(`${ticketUrl(id)}/activity`);
+
+export const listAttachments = (id: string) =>
+  apiFetch<TicketAttachment[]>(`${ticketUrl(id)}/attachments`);
+
+export function uploadAttachment(id: string, file: File) {
+  const form = new FormData();
+  form.append("file", file);
+  return apiFetch<TicketAttachment>(`${ticketUrl(id)}/attachments`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
+    body: form,
   });
-  return handleResponse<Ticket>(response);
 }
 
-export async function listTickets(): Promise<Ticket[]> {
-  const response = await fetch(API_URL, { cache: "no-store" });
-  return handleResponse<Ticket[]>(response);
-}
-
-export async function closeTicket(id: string): Promise<Ticket> {
-  const response = await fetch(`${API_URL}/${encodeURIComponent(id)}/close`, {
-    method: "PATCH",
-  });
-  return handleResponse<Ticket>(response);
-}
+export const attachmentUrl = (attachmentId: number) =>
+  `/api/attachments/${attachmentId}`;

@@ -1,42 +1,89 @@
 import { NextResponse } from "next/server";
+import { requirePermission, requireUser } from "@/lib/auth";
+import { asText, badRequest, errorResponse, readJson } from "@/lib/httpError";
 import { createTicket, listTickets } from "@/services/ticketService";
+import {
+  isTicketPriority,
+  isTicketStatus,
+  TicketFilters,
+} from "@/types/ticket";
 
-// GET /api/tickets  → saare tickets (newest first)
-export async function GET() {
+const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+// GET /api/tickets?status=&priority=&assignedTo=&from=&to=
+// Admin = sab tickets, Support Agent = assigned, Employee = khud ke
+export async function GET(request: Request) {
   try {
-    const tickets = await listTickets();
-    return NextResponse.json(tickets);
+    const user = await requireUser();
+    const query = new URL(request.url).searchParams;
+
+    const filters: TicketFilters = {};
+    const status = query.get("status");
+    if (status) {
+      if (!isTicketStatus(status)) throw badRequest("Invalid status filter.");
+      filters.status = status;
+    }
+    const priority = query.get("priority");
+    if (priority) {
+      if (!isTicketPriority(priority)) throw badRequest("Invalid priority filter.");
+      filters.priority = priority;
+    }
+    const assignedTo = query.get("assignedTo");
+    if (assignedTo) {
+      if (assignedTo === "unassigned") filters.assignedTo = "unassigned";
+      else if (/^\d+$/.test(assignedTo)) filters.assignedTo = Number(assignedTo);
+      else throw badRequest("Invalid assignee filter.");
+    }
+    for (const key of ["from", "to"] as const) {
+      const value = query.get(key);
+      if (value) {
+        if (!DATE_PATTERN.test(value) || Number.isNaN(Date.parse(value))) {
+          throw badRequest(`Invalid "${key}" date.`);
+        }
+        filters[key] = value;
+      }
+    }
+
+    return NextResponse.json(await listTickets(user, filters));
   } catch (error) {
-    console.error("GET /api/tickets failed:", error);
-    return NextResponse.json(
-      { error: "Failed to load tickets" },
-      { status: 500 }
-    );
+    return errorResponse(error, "GET /api/tickets");
   }
 }
 
-// POST /api/tickets  → naya ticket
+// POST /api/tickets   body: { title, description, priority, processId }
+// Status hamesha "Open"; created_by = logged-in user (frontend se nahi)
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const title = typeof body?.title === "string" ? body.title.trim() : "";
-    const description =
-      typeof body?.description === "string" ? body.description.trim() : "";
+    const user = await requirePermission("ticket.create");
+    const body = await readJson(request);
 
-    if (title === "" || description === "") {
-      return NextResponse.json(
-        { error: "Title and description are required" },
-        { status: 400 }
-      );
+    const title = asText(body.title).trim();
+    const description = asText(body.description).trim();
+    const priority = body.priority ?? "Medium";
+    const validPriority = isTicketPriority(priority) ? priority : null;
+
+    const errors: Record<string, string> = {};
+    if (title === "") errors.title = "Subject is required.";
+    else if (title.length > 255) errors.title = "Subject must be at most 255 characters.";
+    if (description === "") errors.description = "Description is required.";
+    else if (description.length > 10000)
+      errors.description = "Description must be at most 10000 characters.";
+    if (!validPriority) errors.priority = "Please select a priority.";
+    const processId = Number(body.processId);
+    if (!Number.isInteger(processId) || processId <= 0)
+      errors.processId = "Please select a process.";
+    if (!validPriority || Object.keys(errors).length > 0) {
+      throw badRequest("Please fix the highlighted fields", errors);
     }
 
-    const ticket = await createTicket({ title, description });
+    const ticket = await createTicket(user, {
+      title,
+      description,
+      priority: validPriority,
+      processId,
+    });
     return NextResponse.json(ticket, { status: 201 });
   } catch (error) {
-    console.error("POST /api/tickets failed:", error);
-    return NextResponse.json(
-      { error: "Failed to create ticket" },
-      { status: 500 }
-    );
+    return errorResponse(error, "POST /api/tickets");
   }
 }

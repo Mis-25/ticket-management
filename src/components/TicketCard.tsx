@@ -1,13 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useRef, useState } from "react";
+import { PriorityBadge, StatusBadge } from "@/components/Badges";
+import { formatDateTime } from "@/lib/format";
 import { Ticket } from "@/types/ticket";
 
 interface TicketCardProps {
   ticket: Ticket;
-  index: number;
-  onClose: (id: string) => void;
-  isClosing: boolean;
 }
 
 interface TooltipPosition {
@@ -16,41 +16,27 @@ interface TooltipPosition {
   bottom?: number;
 }
 
-function formatDateTime(isoString: string): string {
-  return new Date(isoString).toLocaleString("en-IN", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: true,
-  });
+function EyeIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
 }
 
-export default function TicketCard({
-  ticket,
-  index,
-  onClose,
-  isClosing,
-}: TicketCardProps) {
-  const isOpen = ticket.status === "Open";
+/** Table ki ek row. Status ab yahan se nahi badalta — ticket detail page par actions hain. */
+export default function TicketCard({ ticket }: TicketCardProps) {
   const descriptionRef = useRef<HTMLDivElement>(null);
-  const [tooltipPosition, setTooltipPosition] =
-    useState<TooltipPosition | null>(null);
+  const [tooltipPosition, setTooltipPosition] = useState<TooltipPosition | null>(null);
 
   function showTooltip() {
     const element = descriptionRef.current;
-    if (!element) return;
-
-    const isTruncated = element.scrollWidth > element.clientWidth;
-    if (!isTruncated) return;
+    if (!element || element.scrollWidth <= element.clientWidth) return;
 
     const rect = element.getBoundingClientRect();
-    const tooltipWidth = 384; // max-w-sm
-    const left = Math.max(
-      8,
-      Math.min(rect.left, window.innerWidth - tooltipWidth - 16)
-    );
+    const tooltipWidth = 384; // w-96
+    const left = Math.max(8, Math.min(rect.left, window.innerWidth - tooltipWidth - 16));
 
     if (window.innerHeight - rect.bottom < 220) {
       setTooltipPosition({ left, bottom: window.innerHeight - rect.top + 8 });
@@ -59,34 +45,25 @@ export default function TicketCard({
     }
   }
 
-  function hideTooltip() {
-    setTooltipPosition(null);
-  }
-
   return (
-    <tr className="border-b border-slate-200 transition hover:bg-blue-50/50">
-      <td className="px-4 py-4 text-sm font-bold text-slate-900">{index}</td>
+    <tr>
+      <td className="cell-nowrap">{ticket.id}</td>
 
-      <td className="px-4 py-4 text-sm">
-        <span className="whitespace-nowrap font-mono text-slate-700">
-          {ticket.id}
-        </span>
-      </td>
-
-      <td className="px-4 py-4 text-sm font-semibold text-slate-900">
-        {ticket.title}
-      </td>
-
-      <td className="px-4 py-4 text-sm text-slate-600">
+      <td>
+        <Link
+          href={`/tickets/${encodeURIComponent(ticket.id)}`}
+          className="cell-title cell-title-link"
+        >
+          {ticket.title}
+        </Link>
         <div
           ref={descriptionRef}
           onMouseEnter={showTooltip}
-          onMouseLeave={hideTooltip}
-          className="max-w-[240px] cursor-default truncate"
+          onMouseLeave={() => setTooltipPosition(null)}
+          className="cell-truncate cell-sub"
         >
           {ticket.description}
         </div>
-
         {tooltipPosition && (
           <div
             role="tooltip"
@@ -95,47 +72,40 @@ export default function TicketCard({
               top: tooltipPosition.top,
               bottom: tooltipPosition.bottom,
             }}
-            className="pointer-events-none fixed z-50 max-h-52 w-96 max-w-[calc(100vw-1rem)] overflow-y-auto whitespace-pre-wrap break-words rounded-lg bg-slate-900 px-4 py-3 text-sm leading-relaxed text-white shadow-xl"
+            className="tooltip"
           >
             {ticket.description}
           </div>
         )}
       </td>
 
-      <td className="px-4 py-4 text-sm">
-        <span
-          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${
-            isOpen
-              ? "bg-green-100 text-green-800"
-              : "bg-slate-200 text-slate-700"
-          }`}
-        >
-          <span
-            className={`h-1.5 w-1.5 rounded-full ${
-              isOpen ? "bg-green-600" : "bg-slate-500"
-            }`}
-          />
-          {ticket.status}
-        </span>
+      <td>{ticket.process?.name ?? <span className="text-muted-cell">—</span>}</td>
+
+      <td>
+        <PriorityBadge priority={ticket.priority} />
       </td>
 
-      <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-600">
-        {formatDateTime(ticket.createdAt)}
+      <td>
+        <StatusBadge status={ticket.status} />
       </td>
 
-      <td className="px-4 py-4 text-sm">
-        {isOpen ? (
-          <button
-            type="button"
-            onClick={() => onClose(ticket.id)}
-            disabled={isClosing}
-            className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-medium text-red-700 transition hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-300 disabled:cursor-not-allowed disabled:opacity-60"
+      <td>{ticket.createdBy?.name ?? "—"}</td>
+
+      <td>{ticket.assignedTo?.name ?? <span className="text-muted-cell">Unassigned</span>}</td>
+
+      <td className="cell-nowrap">{formatDateTime(ticket.createdAt)}</td>
+
+      <td>
+        <div className="row-actions">
+          <Link
+            href={`/tickets/${encodeURIComponent(ticket.id)}`}
+            className="btn-icon"
+            aria-label={`View ticket ${ticket.id}`}
+            title="View"
           >
-            {isClosing ? "Closing..." : "Close"}
-          </button>
-        ) : (
-          <span className="text-slate-400">&mdash;</span>
-        )}
+            <EyeIcon />
+          </Link>
+        </div>
       </td>
     </tr>
   );

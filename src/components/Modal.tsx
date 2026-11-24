@@ -30,28 +30,25 @@ export default function Modal({ isOpen, title, onClose, children }: ModalProps) 
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      className="modal-backdrop"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
       aria-label={title}
     >
-      <div
-        className="w-full max-w-lg overflow-hidden rounded-xl bg-white shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between bg-blue-600 px-6 py-4">
-          <h2 className="text-lg font-semibold text-white">{title}</h2>
+      <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2 className="modal-title">{title}</h2>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close modal"
-            className="rounded-md px-2 text-2xl leading-none text-white/80 transition hover:text-white focus:outline-none focus:ring-2 focus:ring-white/60"
+            className="modal-close"
           >
             &times;
           </button>
         </div>
-        <div className="p-6">{children}</div>
+        <div className="modal-body">{children}</div>
       </div>
     </div>
   );

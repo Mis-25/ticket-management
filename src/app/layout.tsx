@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
+import { AuthProvider } from "@/components/AuthProvider";
+import NavLinks from "@/components/NavLinks";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Helpdesk Ticket Management System",
-  description: "Create, view and close helpdesk tickets.",
+  description: "Create, assign, track and resolve helpdesk tickets.",
 };
 
 export default function RootLayout({
@@ -13,20 +16,20 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="min-h-screen bg-slate-50 text-slate-900 antialiased">
-        <header className="border-b border-slate-200 bg-white">
-          <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-4 sm:px-6">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600 text-lg font-bold text-white">
-              H
+      <body>
+        <AuthProvider>
+          <header className="app-header">
+            <div className="app-header-inner">
+              <h1 className="app-logo">HELPDESK</h1>
+              <p className="app-logo-sub">Ticket Management System</p>
+              <Suspense fallback={null}>
+                <NavLinks />
+              </Suspense>
             </div>
-            <div>
-              <h1 className="text-lg font-bold leading-tight">Helpdesk</h1>
-              <p className="text-xs text-slate-500">Ticket Management System</p>
-            </div>
-          </div>
-        </header>
+          </header>
 
-        <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">{children}</main>
+          <main className="app-main">{children}</main>
+        </AuthProvider>
       </body>
     </html>
   );
