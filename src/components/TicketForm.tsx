@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { ApiError, errorMessage } from "@/lib/apiClient";
 import { listProcesses } from "@/lib/ticketApi";
+import { listManagers, UserOption } from "@/lib/userApi";
 import {
   CreateTicketInput,
   Process,
@@ -20,6 +21,7 @@ interface FormErrors {
   description?: string;
   priority?: string;
   processId?: string;
+  managerId?: string;
 }
 
 export default function TicketForm({ onCreate, onCancel }: TicketFormProps) {
@@ -29,11 +31,13 @@ export default function TicketForm({ onCreate, onCancel }: TicketFormProps) {
   const [processId, setProcessId] = useState("");
   const [processes, setProcesses] = useState<Process[]>([]);
   const [processLoadError, setProcessLoadError] = useState("");
+  const [managerId, setManagerId] = useState("");
+  const [managers, setManagers] = useState<UserOption[]>([]);
+  const [managerLoadError, setManagerLoadError] = useState("");
   const [errors, setErrors] = useState<FormErrors>({});
   const [submitError, setSubmitError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Company ke processes — database se
   useEffect(() => {
     let isActive = true;
     listProcesses()
@@ -47,6 +51,17 @@ export default function TicketForm({ onCreate, onCancel }: TicketFormProps) {
       .catch((error) => {
         if (isActive) setProcessLoadError(errorMessage(error, "Could not load processes."));
       });
+    listManagers()
+      .then((data) => {
+        if (!isActive) return;
+        setManagers(data);
+        setManagerLoadError(
+          data.length === 0 ? "No manager can assign tickets yet. Please contact the Admin." : ""
+        );
+      })
+      .catch((error) => {
+        if (isActive) setManagerLoadError(errorMessage(error, "Could not load managers."));
+      });
     return () => {
       isActive = false;
     };
@@ -55,10 +70,13 @@ export default function TicketForm({ onCreate, onCancel }: TicketFormProps) {
   function validate(): FormErrors {
     const newErrors: FormErrors = {};
     if (title.trim() === "") {
-      newErrors.title = "Subject is required. Please enter a ticket subject.";
+      newErrors.title = "Title is required. Please enter a ticket title.";
     }
     if (processId === "") {
       newErrors.processId = "Process is required. Please select a process.";
+    }
+    if (managerId === "") {
+      newErrors.managerId = "Please select the manager who will assign this ticket.";
     }
     if (description.trim() === "") {
       newErrors.description = "Description is required. Please describe the issue.";
@@ -76,11 +94,18 @@ export default function TicketForm({ onCreate, onCancel }: TicketFormProps) {
 
     setIsSubmitting(true);
     try {
-      await onCreate({ title, description, priority, processId: Number(processId) });
+      await onCreate({
+        title,
+        description,
+        priority,
+        processId: Number(processId),
+        managerId: Number(managerId),
+      });
       setTitle("");
       setDescription("");
       setPriority("Medium");
       setProcessId("");
+      setManagerId("");
       setErrors({});
     } catch (error) {
       if (error instanceof ApiError && Object.keys(error.fields).length) {
@@ -98,7 +123,7 @@ export default function TicketForm({ onCreate, onCancel }: TicketFormProps) {
       <div className="form-fields">
         <div>
           <label htmlFor="title" className="form-label">
-            Subject
+            Title
           </label>
           <input
             id="title"
@@ -137,6 +162,32 @@ export default function TicketForm({ onCreate, onCancel }: TicketFormProps) {
             <p className="form-error" role="alert">
               {errors.processId || processLoadError}
             </p>
+          )}
+        </div>
+
+        <div>
+          <label htmlFor="manager" className="form-label">
+            Assigning Manager
+          </label>
+          <select
+            id="manager"
+            value={managerId}
+            onChange={(e) => setManagerId(e.target.value)}
+            className={`form-input ${errors.managerId ? "form-input-error" : ""}`}
+          >
+            <option value="">Select manager</option>
+            {managers.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name} ({m.roleName})
+              </option>
+            ))}
+          </select>
+          {(errors.managerId || managerLoadError) ? (
+            <p className="form-error" role="alert">
+              {errors.managerId || managerLoadError}
+            </p>
+          ) : (
+            <p className="form-hint">This person will assign the ticket to someone.</p>
           )}
         </div>
 

@@ -3,11 +3,13 @@
 import Link from "next/link";
 import { useRef, useState } from "react";
 import { PriorityBadge, StatusBadge } from "@/components/Badges";
+import { TrashIcon } from "@/components/Icons";
 import { formatDateTime } from "@/lib/format";
 import { Ticket } from "@/types/ticket";
 
 interface TicketCardProps {
   ticket: Ticket;
+  onDelete?: (ticket: Ticket) => void;
 }
 
 interface TooltipPosition {
@@ -16,17 +18,7 @@ interface TooltipPosition {
   bottom?: number;
 }
 
-function EyeIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" />
-      <circle cx="12" cy="12" r="3" />
-    </svg>
-  );
-}
-
-/** Table ki ek row. Status ab yahan se nahi badalta — ticket detail page par actions hain. */
-export default function TicketCard({ ticket }: TicketCardProps) {
+export default function TicketCard({ ticket, onDelete }: TicketCardProps) {
   const descriptionRef = useRef<HTMLDivElement>(null);
   const [tooltipPosition, setTooltipPosition] = useState<TooltipPosition | null>(null);
 
@@ -35,7 +27,7 @@ export default function TicketCard({ ticket }: TicketCardProps) {
     if (!element || element.scrollWidth <= element.clientWidth) return;
 
     const rect = element.getBoundingClientRect();
-    const tooltipWidth = 384; // w-96
+    const tooltipWidth = 384;
     const left = Math.max(8, Math.min(rect.left, window.innerWidth - tooltipWidth - 16));
 
     if (window.innerHeight - rect.bottom < 220) {
@@ -95,18 +87,21 @@ export default function TicketCard({ ticket }: TicketCardProps) {
 
       <td className="cell-nowrap">{formatDateTime(ticket.createdAt)}</td>
 
-      <td>
-        <div className="row-actions">
-          <Link
-            href={`/tickets/${encodeURIComponent(ticket.id)}`}
-            className="btn-icon"
-            aria-label={`View ticket ${ticket.id}`}
-            title="View"
-          >
-            <EyeIcon />
-          </Link>
-        </div>
-      </td>
+      {onDelete && (
+        <td>
+          <div className="row-actions">
+            <button
+              type="button"
+              onClick={() => onDelete(ticket)}
+              className="btn-icon-danger"
+              aria-label={`Delete ticket ${ticket.id}`}
+              title="Delete"
+            >
+              <TrashIcon />
+            </button>
+          </div>
+        </td>
+      )}
     </tr>
   );
 }

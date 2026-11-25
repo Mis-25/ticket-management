@@ -1,3 +1,4 @@
+import { PoolClient } from "pg";
 import { pool, withTransaction } from "@/lib/db";
 import { badRequest, HttpError, notFound } from "@/lib/httpError";
 import {
@@ -9,6 +10,7 @@ import {
   User,
   UserStatus,
 } from "@/types/user";
+import { statusToCode } from "@/types/ticket";
 
 interface UserRow {
   id: number;
@@ -53,37 +55,91 @@ const duplicateEmail = () =>
 const isUniqueViolation = (error: unknown) =>
   (error as { code?: string }).code === "23505";
 
-/** Saare users (newest first). */
 export async function listUsers(): Promise<User[]> {
   const result = await pool.query<UserRow>(
-    `${USER_SELECT} ORDER BY u.created_at DESC, u.id DESC`
+    `${USER_SELECT} WHERE u.status <> 'deleted' ORDER BY u.created_at DESC, u.id DESC`
   );
   return result.rows.map(toUser);
 }
 
-/** Assign dropdown ke liye: active Support Agents. */
-export async function listSupportAgents(): Promise<{ id: number; name: string }[]> {
-  const result = await pool.query<{ id: number; name: string }>(
-    `SELECT id, name FROM users
-     WHERE role_id = $1 AND status = 'active'
-     ORDER BY name ASC`,
-    [ROLES.SUPPORT_AGENT]
+export interface UserOption {
+  id: number;
+  name: string;
+  roleName: string;
+}
+
+export async function listUsersWithPermission(code: string): Promise<UserOption[]> {
+  const result = await pool.query<{ id: number; name: string; role_name: string }>(
+    `SELECT u.id, u.name, r.name AS role_name
+     FROM users u
+     JOIN roles r ON r.id = u.role_id
+     WHERE u.status = 'active'
+       AND EXISTS (
+         SELECT 1 FROM role_permissions rp
+         JOIN permissions p ON p.id = rp.permission_id
+         WHERE rp.role_id = u.role_id AND p.code = $1
+       )
+     ORDER BY u.name ASC`,
+    [code]
   );
-  return result.rows;
+  return result.rows.map((r) => ({ id: r.id, name: r.name, roleName: r.role_name }));
+}
+
+export async function findUserWithPermission(
+  db: Pick<PoolClient, "query">,
+  userId: number,
+  code: string
+): Promise<UserOption | null> {
+  const result = await db.query<{ id: number; name: string; role_name: string }>(
+    `SELECT u.id, u.name, r.name AS role_name
+     FROM users u
+     JOIN roles r ON r.id = u.role_id
+     WHERE u.id = $1 AND u.status = 'active'
+       AND EXISTS (
+         SELECT 1 FROM role_permissions rp
+         JOIN permissions p ON p.id = rp.permission_id
+         WHERE rp.role_id = u.role_id AND p.code = $2
+       )`,
+    [userId, code]
+  );
+  const r = result.rows[0];
+  return r ? { id: r.id, name: r.name, roleName: r.role_name } : null;
+}
+
+const isForeignKeyViolation = (error: unknown) =>
+  (error as { code?: string }).code === "23503";
+
+const unknownRole = () =>
+  badRequest("Please select a valid role.", { roleId: "Please select a valid role." });
+
+async function assertRoleExists(roleId: number) {
+  const role = await pool.query(
+    "SELECT 1 FROM roles WHERE id = $1 AND deleted_at IS NULL",
+    [roleId]
+  );
+  if (!role.rowCount) throw unknownRole();
 }
 
 async function getUser(id: number): Promise<User> {
-  const result = await pool.query<UserRow>(`${USER_SELECT} WHERE u.id = $1`, [id]);
+  const result = await pool.query<UserRow>(`${USER_SELECT} WHERE u.id = $1 AND u.status <> 'deleted'`, [id]);
   if (!result.rows[0]) throw notFound("User not found.");
   return toUser(result.rows[0]);
 }
 
-/** Naya user (Admin banata hai). */
 export async function createUser(input: CreateUserInput): Promise<User> {
+  await assertRoleExists(input.roleId);
   try {
     const result = await pool.query<{ id: number }>(
       `INSERT INTO users (name, email, phone_number, role_id)
        VALUES ($1, $2, $3, $4)
+       ON CONFLICT (email) DO UPDATE
+         SET name = EXCLUDED.name,
+             phone_number = EXCLUDED.phone_number,
+             role_id = EXCLUDED.role_id,
+             status = 'active',
+             created_at = NOW(),
+             updated_at = NOW()
+         WHERE users.status = 'deleted'
        RETURNING id`,
       [
         input.name.trim(),
@@ -92,18 +148,15 @@ export async function createUser(input: CreateUserInput): Promise<User> {
         input.roleId,
       ]
     );
+    if (!result.rows[0]) throw duplicateEmail();
     return getUser(result.rows[0].id);
   } catch (error) {
     if (isUniqueViolation(error)) throw duplicateEmail();
+    if (isForeignKeyViolation(error)) throw unknownRole();
     throw error;
   }
 }
 
-/**
- * User update (Admin). Admin khud ka role/status nahi badal sakta
- * (warna system bina Admin ke reh sakta hai).
- * User inactive ho to uske saare sessions khatam.
- */
 export async function updateUser(
   admin: SessionUser,
   id: number,
@@ -130,10 +183,12 @@ export async function updateUser(
   if (input.roleId !== undefined) add("role_id", input.roleId);
   if (input.status !== undefined) add("status", input.status);
 
+  if (input.roleId !== undefined) await assertRoleExists(input.roleId);
+
   await withTransaction(async (client) => {
     params.push(id);
     const result = await client.query(
-      `UPDATE users SET ${sets.join(", ")} WHERE id = $${params.length}`,
+      `UPDATE users SET ${sets.join(", ")} WHERE id = $${params.length} AND status <> 'deleted'`,
       params
     );
     if (result.rowCount === 0) throw notFound("User not found.");
@@ -145,7 +200,49 @@ export async function updateUser(
   return getUser(id);
 }
 
-// ---------- Pehli baar setup (pehla Admin) ----------
+export async function deleteUser(admin: SessionUser, id: number): Promise<void> {
+  if (id === admin.id) throw badRequest("You cannot delete your own account.");
+
+  await withTransaction(async (client) => {
+    const user = await client.query(
+      `SELECT 1 FROM users WHERE id = $1 AND status <> 'deleted' FOR UPDATE`,
+      [id]
+    );
+    if (!user.rowCount) throw notFound("User not found.");
+
+    const openTickets = await client.query<{ ticket_number: string }>(
+      `SELECT ticket_number FROM tickets
+       WHERE assigned_to = $1 AND deleted_at IS NULL AND status <> $2
+       ORDER BY id`,
+      [id, statusToCode("Closed")]
+    );
+    if (openTickets.rowCount) {
+      const list = openTickets.rows.map((r) => r.ticket_number).join(", ");
+      throw badRequest(
+        `This user still has open tickets (${list}). Please reassign them first.`
+      );
+    }
+
+    const managed = await client.query<{ ticket_number: string }>(
+      `SELECT ticket_number FROM tickets
+       WHERE manager_id = $1 AND deleted_at IS NULL AND status <> $2
+       ORDER BY id`,
+      [id, statusToCode("Closed")]
+    );
+    if (managed.rowCount) {
+      const list = managed.rows.map((r) => r.ticket_number).join(", ");
+      throw badRequest(
+        `This user is the assigning manager of open tickets (${list}). Please close or delete them first.`
+      );
+    }
+
+    await client.query(
+      `UPDATE users SET status = 'deleted', updated_at = NOW() WHERE id = $1`,
+      [id]
+    );
+    await client.query("DELETE FROM user_sessions WHERE user_id = $1", [id]);
+  });
+}
 
 export async function isSetupNeeded(): Promise<boolean> {
   const result = await pool.query(
@@ -155,14 +252,8 @@ export async function isSetupNeeded(): Promise<boolean> {
   return result.rowCount === 0;
 }
 
-/**
- * Pehla Admin banata hai — sirf tab jab koi active Admin nahi hai.
- * Email pehle se users table me ho to wahi user Admin ban jata hai
- * (naya duplicate user nahi banta).
- */
 export async function createFirstAdmin(input: CreateUserInput): Promise<{ id: number }> {
   return withTransaction(async (client) => {
-    // Do log ek saath setup na kar sakein
     await client.query("SELECT pg_advisory_xact_lock(424242)");
     const existingAdmin = await client.query(
       `SELECT 1 FROM users WHERE role_id = $1 AND status = 'active' LIMIT 1`,

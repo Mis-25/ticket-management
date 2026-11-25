@@ -1,9 +1,3 @@
--- Status ko text ki jagah number (code) me save karna.
---   0 = Open, 1 = Assigned, 2 = In Progress, 3 = Pending (ab "On Hold"),
---   4 = Resolved, 5 = Closed, 6 = Reopened
--- Purana text data apne aap sahi number me convert ho jata hai.
--- Dobara chalane par kuch nahi hota (column pehle se number ho to skip).
-
 DO $$
 BEGIN
   IF EXISTS (

@@ -5,7 +5,6 @@ import { listAttachments, uploadAttachment } from "@/services/attachmentService"
 
 type Params = { params: Promise<{ id: string }> };
 
-// GET /api/tickets/TKT-6/attachments
 export async function GET(_request: Request, { params }: Params) {
   try {
     const user = await requireUser();
@@ -16,7 +15,6 @@ export async function GET(_request: Request, { params }: Params) {
   }
 }
 
-// POST /api/tickets/TKT-6/attachments   multipart form-data: file
 export async function POST(request: Request, { params }: Params) {
   try {
     const user = await requireUser();

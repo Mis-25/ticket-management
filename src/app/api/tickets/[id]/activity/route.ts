@@ -3,7 +3,6 @@ import { requireUser } from "@/lib/auth";
 import { errorResponse } from "@/lib/httpError";
 import { listActivity } from "@/services/activityService";
 
-// GET /api/tickets/TKT-6/activity  → Transaction / Activity history (read-only)
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }

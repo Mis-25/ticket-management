@@ -4,7 +4,6 @@ import { asText, badRequest, errorResponse, readJson } from "@/lib/httpError";
 import { createUser, listUsers } from "@/services/userService";
 import { CreateUserInput, RoleId, validateUser } from "@/types/user";
 
-// GET /api/users  → saare users (sirf Admin)
 export async function GET() {
   try {
     await requirePermission("user.manage");
@@ -14,7 +13,6 @@ export async function GET() {
   }
 }
 
-// POST /api/users  body: { name, email, phoneNumber, roleId } (sirf Admin)
 export async function POST(request: Request) {
   try {
     await requirePermission("user.manage");

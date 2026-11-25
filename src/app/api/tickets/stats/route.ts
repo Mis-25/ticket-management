@@ -3,7 +3,6 @@ import { requireUser } from "@/lib/auth";
 import { errorResponse } from "@/lib/httpError";
 import { getTicketStats } from "@/services/ticketService";
 
-// GET /api/tickets/stats  → har status ki ginti (database se, user ke scope me)
 export async function GET() {
   try {
     const user = await requireUser();

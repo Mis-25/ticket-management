@@ -1,19 +1,11 @@
 export const ROLES = {
   ADMIN: 1,
-  SUPPORT_AGENT: 2,
-  EMPLOYEE: 3,
 } as const;
 
-export const ROLE_OPTIONS = [
-  { id: ROLES.ADMIN, name: "Admin" },
-  { id: ROLES.SUPPORT_AGENT, name: "Support Agent" },
-  { id: ROLES.EMPLOYEE, name: "Employee" },
-] as const;
-
-export type RoleId = (typeof ROLES)[keyof typeof ROLES];
+export type RoleId = number;
 
 export function isRoleId(value: unknown): value is RoleId {
-  return value === 1 || value === 2 || value === 3;
+  return typeof value === "number" && Number.isInteger(value) && value > 0 && value < 32768;
 }
 
 export type UserStatus = "active" | "inactive";
@@ -31,7 +23,6 @@ export interface User {
   replyCount: number;
 }
 
-/** Abhi chune hue user ki jaankari (session se). */
 export interface SessionUser {
   id: number;
   name: string;
@@ -81,7 +72,6 @@ function checkPhone(phone: string, errors: UserErrors) {
     errors.phoneNumber = "Please enter a valid phone number (min 10 digits).";
 }
 
-/** Frontend aur backend dono isi validation ko use karte hain. */
 export function validateUser(input: CreateUserInput): UserErrors {
   const errors: UserErrors = {};
   checkName(input.name, errors);

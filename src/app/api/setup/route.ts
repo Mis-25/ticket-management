@@ -3,7 +3,6 @@ import { asText, badRequest, errorResponse, HttpError, readJson } from "@/lib/ht
 import { createFirstAdmin, isSetupNeeded } from "@/services/userService";
 import { ROLES, validateUser } from "@/types/user";
 
-// GET /api/setup  → { needed: true } jab tak koi Admin nahi bana
 export async function GET() {
   try {
     return NextResponse.json({ needed: await isSetupNeeded() });
@@ -12,8 +11,6 @@ export async function GET() {
   }
 }
 
-// POST /api/setup  body: { name, email, phoneNumber }
-// Sirf pehli baar (koi Admin na ho tab) chalta hai.
 export async function POST(request: Request) {
   try {
     if (!(await isSetupNeeded())) {

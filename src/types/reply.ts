@@ -8,7 +8,7 @@ export interface ReplyUser {
 
 export interface TicketReply {
   id: number;
-  ticketId: string; // e.g. "TKT-6"
+  ticketId: string;
   message: string;
   commentType: CommentType;
   createdAt: string;
@@ -24,7 +24,6 @@ export const REPLY_MESSAGE_LIMIT = 5000;
 
 export type ReplyErrors = Partial<Record<keyof CreateReplyInput, string>>;
 
-/** Frontend aur backend dono isi validation ko use karte hain. */
 export function validateReply(input: CreateReplyInput): ReplyErrors {
   const errors: ReplyErrors = {};
   const message = input.message.trim();

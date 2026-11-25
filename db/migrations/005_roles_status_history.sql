@@ -1,16 +1,3 @@
--- =====================================================================
--- 005: Roles (RBAC), login sessions, ticket workflow, history tables
--- =====================================================================
--- Sirf naye columns / tables jodta hai. Purana data delete nahi hota.
--- Status codes (tickets.status, SMALLINT) wahi rehte hain:
---   0 Open, 1 Assigned, 2 In Progress, 3 On Hold (pehle "Pending"),
---   4 Resolved, 5 Closed, 6 Reopened
--- Existing table reuse:
---   * tickets.title        = "Subject"  (naya subject column nahi banaya)
---   * ticket_replies       = comments   (naya ticket_comments table nahi banaya)
--- =====================================================================
-
--- ---------- 1. Roles & permissions ----------
 CREATE TABLE IF NOT EXISTS roles (
   id          SMALLINT     PRIMARY KEY,
   name        VARCHAR(50)  NOT NULL UNIQUE,
@@ -57,17 +44,14 @@ CREATE TABLE IF NOT EXISTS role_permissions (
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.role_id, p.id
 FROM (VALUES
-  -- Admin
   (1, 'ticket.create'), (1, 'ticket.view_all'), (1, 'ticket.assign'),
   (1, 'ticket.start'), (1, 'ticket.hold'), (1, 'ticket.resolve'),
   (1, 'ticket.close_any'), (1, 'ticket.close_confirm'), (1, 'ticket.reopen'),
   (1, 'comment.public'), (1, 'comment.internal'), (1, 'attachment.upload'),
   (1, 'history.view'), (1, 'user.manage'),
-  -- Support Agent
   (2, 'ticket.view_assigned'), (2, 'ticket.start'), (2, 'ticket.hold'),
   (2, 'ticket.resolve'), (2, 'comment.public'), (2, 'comment.internal'),
   (2, 'attachment.upload'), (2, 'history.view'),
-  -- Employee
   (3, 'ticket.create'), (3, 'ticket.view_own'), (3, 'ticket.close_confirm'),
   (3, 'ticket.reopen'), (3, 'comment.public'), (3, 'attachment.upload'),
   (3, 'history.view')
@@ -75,8 +59,6 @@ FROM (VALUES
 JOIN permissions p ON p.code = r.code
 ON CONFLICT DO NOTHING;
 
--- ---------- 2. Users: login + role ----------
--- Purane users ko Employee role milta hai; password admin set karega.
 ALTER TABLE users
   ADD COLUMN IF NOT EXISTS password_hash VARCHAR(100),
   ADD COLUMN IF NOT EXISTS role_id       SMALLINT    NOT NULL DEFAULT 3 REFERENCES roles(id),
@@ -92,7 +74,6 @@ ALTER TABLE users ADD CONSTRAINT users_status_check
 
 CREATE INDEX IF NOT EXISTS idx_users_role_id ON users (role_id);
 
--- Login sessions (cookie me sirf random token, DB me uska SHA-256 hash)
 CREATE TABLE IF NOT EXISTS user_sessions (
   id          INTEGER     GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   user_id     INTEGER     NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -102,7 +83,6 @@ CREATE TABLE IF NOT EXISTS user_sessions (
 );
 CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions (user_id);
 
--- ---------- 3. Tickets: workflow columns ----------
 ALTER TABLE tickets
   ADD COLUMN IF NOT EXISTS ticket_number   VARCHAR(20)
     GENERATED ALWAYS AS ('TKT-' || id::text) STORED,
@@ -116,7 +96,6 @@ ALTER TABLE tickets
   ADD COLUMN IF NOT EXISTS reopened_at     TIMESTAMPTZ,
   ADD COLUMN IF NOT EXISTS updated_at      TIMESTAMPTZ;
 
--- Purane tickets ke liye updated_at = created_at (sirf khali values)
 UPDATE tickets SET updated_at = created_at WHERE updated_at IS NULL;
 ALTER TABLE tickets ALTER COLUMN updated_at SET DEFAULT NOW(),
                     ALTER COLUMN updated_at SET NOT NULL;
@@ -131,7 +110,6 @@ CREATE INDEX IF NOT EXISTS idx_tickets_created_by  ON tickets (created_by);
 CREATE INDEX IF NOT EXISTS idx_tickets_assigned_to ON tickets (assigned_to);
 CREATE INDEX IF NOT EXISTS idx_tickets_created_at  ON tickets (created_at);
 
--- ---------- 4. Comments: existing ticket_replies reuse ----------
 ALTER TABLE ticket_replies
   ADD COLUMN IF NOT EXISTS comment_type VARCHAR(10) NOT NULL DEFAULT 'public',
   ADD COLUMN IF NOT EXISTS updated_at   TIMESTAMPTZ;
@@ -143,24 +121,21 @@ ALTER TABLE ticket_replies DROP CONSTRAINT IF EXISTS ticket_replies_comment_type
 ALTER TABLE ticket_replies ADD CONSTRAINT ticket_replies_comment_type_check
   CHECK (comment_type IN ('public', 'internal'));
 
--- ---------- 5. Status history ----------
 CREATE TABLE IF NOT EXISTS ticket_status_history (
   id          INTEGER     GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   ticket_id   INTEGER     NOT NULL REFERENCES tickets(id) ON DELETE RESTRICT,
-  old_status  SMALLINT    CHECK (old_status BETWEEN 0 AND 6),  -- NULL = ticket created
+  old_status  SMALLINT    CHECK (old_status BETWEEN 0 AND 6),
   new_status  SMALLINT    NOT NULL CHECK (new_status BETWEEN 0 AND 6),
   changed_by  INTEGER     NOT NULL REFERENCES users(id),
   reason      TEXT,
   note        TEXT,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  -- Same status dobara record na ho
   CONSTRAINT ticket_status_history_change_check
     CHECK (old_status IS DISTINCT FROM new_status)
 );
 CREATE INDEX IF NOT EXISTS idx_status_history_ticket
   ON ticket_status_history (ticket_id, created_at);
 
--- ---------- 6. Assignment history ----------
 CREATE TABLE IF NOT EXISTS ticket_assignments (
   id                   INTEGER     GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   ticket_id            INTEGER     NOT NULL REFERENCES tickets(id) ON DELETE RESTRICT,
@@ -173,24 +148,21 @@ CREATE TABLE IF NOT EXISTS ticket_assignments (
 );
 CREATE INDEX IF NOT EXISTS idx_assignments_ticket
   ON ticket_assignments (ticket_id, assigned_at);
--- Ek ticket ka ek hi active assignment
 CREATE UNIQUE INDEX IF NOT EXISTS idx_assignments_one_active
   ON ticket_assignments (ticket_id) WHERE unassigned_at IS NULL;
 
--- ---------- 7. Attachments ----------
 CREATE TABLE IF NOT EXISTS ticket_attachments (
   id          INTEGER      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   ticket_id   INTEGER      NOT NULL REFERENCES tickets(id) ON DELETE RESTRICT,
   uploaded_by INTEGER      NOT NULL REFERENCES users(id),
-  file_name   VARCHAR(255) NOT NULL,   -- original naam
-  file_path   VARCHAR(255) NOT NULL,   -- server par stored naam
+  file_name   VARCHAR(255) NOT NULL,
+  file_path   VARCHAR(255) NOT NULL,
   file_type   VARCHAR(100) NOT NULL,
   file_size   INTEGER      NOT NULL CHECK (file_size > 0),
   created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_attachments_ticket ON ticket_attachments (ticket_id);
 
--- ---------- 8. Activity / transaction log ----------
 CREATE TABLE IF NOT EXISTS ticket_activity_log (
   id          INTEGER     GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   ticket_id   INTEGER     NOT NULL REFERENCES tickets(id) ON DELETE RESTRICT,
@@ -208,7 +180,6 @@ CREATE TABLE IF NOT EXISTS ticket_activity_log (
 CREATE INDEX IF NOT EXISTS idx_activity_ticket
   ON ticket_activity_log (ticket_id, created_at);
 
--- ---------- 9. History ko edit/delete se bachana ----------
 CREATE OR REPLACE FUNCTION prevent_history_change() RETURNS trigger AS $$
 BEGIN
   RAISE EXCEPTION '% records cannot be modified or deleted', TG_TABLE_NAME;

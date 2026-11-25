@@ -22,7 +22,6 @@ interface AuthState {
 
 const AuthContext = createContext<AuthState | null>(null);
 
-/** Poori app ko current user (Admin) ki jaankari deta hai — server se. */
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<SessionUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -72,11 +71,6 @@ export function useAuth(): AuthState {
   return context;
 }
 
-/**
- * Page ke liye: koi Admin nahi bana to /setup par bhejo (sirf pehli baar).
- * permission diya ho aur user ke paas na ho to /tickets par bhejo.
- * Asli security backend API karti hai; ye sirf UI redirect hai.
- */
 export function useRequireAuth(permission?: string): SessionUser | null {
   const { user, isLoading, can } = useAuth();
   const router = useRouter();

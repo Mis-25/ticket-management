@@ -9,10 +9,6 @@ import { ROLES, USER_LIMITS, UserErrors, validateUser } from "@/types/user";
 
 const EMPTY = { name: "", email: "", phoneNumber: "" };
 
-/**
- * Sirf pehli baar: jab database me koi Admin nahi hai.
- * Admin ban jaane ke baad app seedha Tickets dashboard kholti hai.
- */
 export default function SetupPage() {
   const router = useRouter();
   const { user, isLoading, refresh } = useAuth();

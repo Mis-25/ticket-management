@@ -1,6 +1,5 @@
 import { TicketPriority, TicketStatus } from "@/types/ticket";
 
-// Har status ka apna rang (globals.css me .badge-status-*)
 const STATUS_CLASS: Record<TicketStatus, string> = {
   Open: "badge-open",
   Assigned: "badge-assigned",

@@ -41,7 +41,6 @@ function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-/** Ek ticket ka saara data ek saath (history sirf permission ho to) */
 async function fetchTicketData(ticketId: string) {
   const detail = await getTicket(ticketId);
   const [replies, attachments, activity] = await Promise.all([
@@ -52,9 +51,9 @@ async function fetchTicketData(ticketId: string) {
   return { detail, replies, attachments, activity };
 }
 
-/** Ticket ke actions ka order + button style */
 const ACTION_ORDER: { action: TicketAction; style: string }[] = [
   { action: "assign", style: "btn-submit" },
+  { action: "unassign", style: "btn-secondary" },
   { action: "start", style: "btn-submit" },
   { action: "hold", style: "btn-warning" },
   { action: "resolve", style: "btn-success" },
@@ -89,7 +88,6 @@ export default function TicketDetailView() {
 
   const closeAction = useCallback(() => setActiveAction(null), []);
 
-  /** Ticket + comments + attachments + history dobara database se */
   const reloadAll = useCallback(async () => {
     const data = await fetchTicketData(ticketId);
     setTicket(data.detail);
@@ -162,7 +160,6 @@ export default function TicketDetailView() {
   const can = ticket.can;
   const availableActions = ACTION_ORDER.filter(({ action }) => can[action]);
   const canWrite = can.reply || can.internalNote;
-  // Sirf ek option allowed ho to wahi; dono ho to user ki choice
   const replyType: CommentType = !can.internalNote
     ? "public"
     : !can.reply
@@ -228,6 +225,7 @@ export default function TicketDetailView() {
     { label: "Priority", value: <PriorityBadge priority={ticket.priority} /> },
     { label: "Process", value: ticket.process?.name ?? "—" },
     { label: "Raised By", value: ticket.createdBy?.name ?? "—" },
+    { label: "Assigning Manager", value: ticket.manager?.name ?? "—" },
     {
       label: "Assigned To",
       value: ticket.assignedTo
@@ -245,7 +243,6 @@ export default function TicketDetailView() {
     <div className="page-wrapper">
       {backLink}
 
-      {/* Heading */}
       <div className="page-head">
         <div>
           <p className="ticket-number">{ticket.id}</p>
@@ -256,7 +253,6 @@ export default function TicketDetailView() {
 
       {notice && <p className="alert-success" role="status">{notice}</p>}
 
-      {/* Role ke hisaab se sirf allowed actions */}
       {availableActions.length > 0 && (
         <section className="action-bar" aria-label="Ticket actions">
           {availableActions.map(({ action, style }) => (
@@ -272,7 +268,6 @@ export default function TicketDetailView() {
         </section>
       )}
 
-      {/* Resolved: creator ko confirm/reopen ka sandesh */}
       {ticket.status === "Resolved" && (can.reopen || (can.close && !can.closeNeedsReason)) && (
         <p className="alert-info">
           Support has marked this ticket as resolved. Please review the resolution
@@ -281,7 +276,6 @@ export default function TicketDetailView() {
         </p>
       )}
 
-      {/* Details */}
       <section className="reply-card">
         <h3 className="reply-heading">Ticket Details</h3>
         <dl className="info-grid">
@@ -308,7 +302,6 @@ export default function TicketDetailView() {
         )}
       </section>
 
-      {/* Conversation */}
       <section className="reply-card">
         <h3 className="reply-heading">
           Conversation <span className="reply-count">({replies.length})</span>
@@ -396,7 +389,6 @@ export default function TicketDetailView() {
         )}
       </section>
 
-      {/* Attachments */}
       <section className="reply-card">
         <div className="section-head">
           <h3 className="reply-heading">
@@ -445,7 +437,6 @@ export default function TicketDetailView() {
         )}
       </section>
 
-      {/* Transaction / Activity history */}
       {can.viewHistory && (
         <section className="reply-card">
           <h3 className="reply-heading">Status History &amp; Activity</h3>

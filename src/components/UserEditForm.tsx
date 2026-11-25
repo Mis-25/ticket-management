@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { ApiError, errorMessage } from "@/lib/apiClient";
 import { updateUser } from "@/lib/userApi";
+import { useRoles } from "@/lib/useRoles";
 import {
-  ROLE_OPTIONS,
   RoleId,
   UpdateUserInput,
   User,
@@ -21,7 +21,6 @@ interface UserEditFormProps {
   onCancel: () => void;
 }
 
-/** Admin: role, status, phone ya naam badle. */
 export default function UserEditForm({ user, isSelf, onSaved, onCancel }: UserEditFormProps) {
   const [name, setName] = useState(user.name);
   const [phoneNumber, setPhoneNumber] = useState(user.phoneNumber);
@@ -30,6 +29,7 @@ export default function UserEditForm({ user, isSelf, onSaved, onCancel }: UserEd
   const [errors, setErrors] = useState<UserErrors>({});
   const [submitError, setSubmitError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { roles, rolesError } = useRoles();
 
   async function handleSubmit(event: React.SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -107,13 +107,17 @@ export default function UserEditForm({ user, isSelf, onSaved, onCancel }: UserEd
               onChange={(e) => setRoleId(Number(e.target.value) as RoleId)}
               className={inputClass("roleId")}
             >
-              {ROLE_OPTIONS.map((role) => (
+              {roles.length === 0 && <option value={user.roleId}>{user.roleName}</option>}
+              {roles.map((role) => (
                 <option key={role.id} value={role.id}>
                   {role.name}
                 </option>
               ))}
             </select>
             {errorFor("roleId")}
+            {rolesError && (
+              <p className="form-error" role="alert">{rolesError}</p>
+            )}
           </div>
           <div>
             <label htmlFor="edit-status" className="form-label">Status</label>

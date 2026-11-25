@@ -16,12 +16,6 @@ interface ActivityRow {
   user_name: string;
 }
 
-/**
- * Ticket ki poori Transaction / Activity history (purani pehle).
- * Internal note wali entries employee ko nahi dikhti.
- * Sirf padhne ke liye — edit/delete ka koi API nahi hai
- * (database trigger bhi edit/delete rokta hai).
- */
 export async function listActivity(
   user: SessionUser,
   ticketId: string

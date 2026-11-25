@@ -39,10 +39,6 @@ function toReply(row: ReplyRow): TicketReply {
   };
 }
 
-/**
- * Ticket ke comments (purane pehle).
- * Internal notes sirf Admin / assigned Support Agent ko milte hain.
- */
 export async function listReplies(
   user: SessionUser,
   ticketId: string
@@ -60,10 +56,6 @@ export async function listReplies(
   return result.rows.map(toReply);
 }
 
-/**
- * Comment save karta hai (logged-in user ke naam se) + activity log.
- * Closed ticket par public reply nahi ho sakta.
- */
 export async function createReply(
   user: SessionUser,
   ticketId: string,
@@ -84,7 +76,6 @@ export async function createReply(
   }
 
   return withTransaction(async (client) => {
-    // Ticket lock: beech me close ho jaye to public reply na jaye
     const locked = await client.query<{ status: number }>(
       "SELECT status FROM tickets WHERE id = $1 FOR UPDATE",
       [ticket.id]

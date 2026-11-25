@@ -8,14 +8,15 @@ import UserEditForm from "@/components/UserEditForm";
 import UserForm from "@/components/UserForm";
 import { errorMessage } from "@/lib/apiClient";
 import { formatDateTime } from "@/lib/format";
-import { listUsers } from "@/lib/userApi";
+import ConfirmDeleteDialog from "@/components/ConfirmDeleteDialog";
+import { TrashIcon } from "@/components/Icons";
+import { deleteUser, listUsers } from "@/lib/userApi";
+import { useRoles } from "@/lib/useRoles";
 import { User } from "@/types/user";
 
-/** Users page — sirf Admin (backend bhi "user.manage" check karta hai). */
 export default function UsersView() {
   const me = useRequireAuth("user.manage");
   const searchParams = useSearchParams();
-  // Dashboard se naya user bana ke aaye ho to ?new=<id>
   const newFromUrl = Number(searchParams.get("new")) || null;
 
   const [users, setUsers] = useState<User[]>([]);
@@ -28,6 +29,9 @@ export default function UsersView() {
 
   const closeAdd = useCallback(() => setIsAddOpen(false), []);
   const closeEdit = useCallback(() => setEditingUser(null), []);
+  const [deletingUser, setDeletingUser] = useState<User | null>(null);
+  const { roles } = useRoles();
+  const closeDelete = useCallback(() => setDeletingUser(null), []);
 
   useEffect(() => {
     if (!me) return;
@@ -41,7 +45,6 @@ export default function UsersView() {
         const created = data.find((u) => u.id === newFromUrl);
         if (created) {
           setSuccessMessage(`User "${created.name}" added successfully.`);
-          // URL se ?new= hata do, taaki refresh par message dobara na aaye
           window.history.replaceState(null, "", "/users");
         }
       } catch (error) {
@@ -57,7 +60,6 @@ export default function UsersView() {
     };
   }, [me, newFromUrl]);
 
-  // Success message aur highlight 6 second baad hat jaye
   useEffect(() => {
     if (!successMessage) return;
     const timer = setTimeout(() => {
@@ -74,9 +76,7 @@ export default function UsersView() {
     setSuccessMessage(message);
     try {
       setUsers(await listUsers());
-    } catch {
-      // list purani reh jayegi; agle refresh par theek
-    }
+    } catch {}
   }
 
   function handleCreated(user: User) {
@@ -87,6 +87,16 @@ export default function UsersView() {
   function handleSaved(user: User) {
     setEditingUser(null);
     reloadAfterSave(user, `User "${user.name}" updated successfully.`);
+  }
+
+  async function handleDeleteUser() {
+    if (!deletingUser) return;
+    await deleteUser(deletingUser.id);
+    setSuccessMessage(`User "${deletingUser.name}" deleted.`);
+    setDeletingUser(null);
+    try {
+      setUsers(await listUsers());
+    } catch {}
   }
 
   const countRole = (role: string) =>
@@ -110,24 +120,17 @@ export default function UsersView() {
         </p>
       )}
 
-      {/* Summary — sab database se */}
       <section className="stat-grid-4">
         <div className="stat-card">
           <p className="stat-label">Total Users</p>
           <p className="stat-value">{users.length}</p>
         </div>
-        <div className="stat-card">
-          <p className="stat-label">Admins</p>
-          <p className="stat-value">{countRole("Admin")}</p>
-        </div>
-        <div className="stat-card">
-          <p className="stat-label">Support Agents</p>
-          <p className="stat-value-brand">{countRole("Support Agent")}</p>
-        </div>
-        <div className="stat-card">
-          <p className="stat-label">Employees</p>
-          <p className="stat-value">{countRole("Employee")}</p>
-        </div>
+        {roles.map((role) => (
+          <div key={role.id} className="stat-card">
+            <p className="stat-label">{role.name}</p>
+            <p className="stat-value">{countRole(role.name)}</p>
+          </div>
+        ))}
       </section>
 
       <section>
@@ -188,6 +191,17 @@ export default function UsersView() {
                           >
                             Edit
                           </button>
+                          {user.id !== me.id && (
+                            <button
+                              type="button"
+                              onClick={() => setDeletingUser(user)}
+                              className="btn-icon-danger"
+                              aria-label={`Delete user ${user.name}`}
+                              title="Delete"
+                            >
+                              <TrashIcon />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -198,6 +212,21 @@ export default function UsersView() {
           </div>
         </div>
       </section>
+
+      <ConfirmDeleteDialog
+        isOpen={deletingUser !== null}
+        title="Delete User"
+        message={
+          deletingUser && (
+            <>
+              Are you sure you want to delete <strong>{deletingUser.name}</strong> (
+              {deletingUser.email})? Their old tickets and replies will still show their name.
+            </>
+          )
+        }
+        onConfirm={handleDeleteUser}
+        onClose={closeDelete}
+      />
 
       <Modal isOpen={isAddOpen} title="Add User" onClose={closeAdd}>
         <UserForm onCreated={handleCreated} onCancel={closeAdd} />

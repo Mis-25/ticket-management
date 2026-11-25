@@ -12,10 +12,9 @@ import {
 import { codeToStatus, TicketAttachment } from "@/types/ticket";
 import { SessionUser } from "@/types/user";
 
-/** Files public folder ke bahar rakhi jaati hain — sirf API se (permission check ke baad) milti hain. */
 const STORAGE_DIR = path.join(process.cwd(), "storage", "attachments");
 
-export const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024; // 5 MB
+export const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
 
 const ALLOWED_TYPES: Record<string, string> = {
   "image/png": ".png",
@@ -62,7 +61,6 @@ function toAttachment(row: AttachmentRow): TicketAttachment {
   };
 }
 
-/** File naam se khatarnak characters hatao */
 function safeFileName(name: string): string {
   const base = path.basename(name).replace(/[^\w.\- ()]/g, "_").trim();
   return (base || "file").slice(0, 200);
@@ -132,27 +130,30 @@ export async function uploadAttachment(
       return toAttachment(saved.rows[0]);
     });
   } catch (error) {
-    // Database save fail → file bhi hata do
     await unlink(fullPath).catch(() => {});
     throw error;
   }
 }
 
-/** Download: ticket dekhne ki permission ho tabhi file milti hai. */
 export async function readAttachment(
   user: SessionUser,
   attachmentId: number
 ): Promise<{ attachment: TicketAttachment; data: Buffer }> {
   const result = await pool.query<
-    AttachmentRow & { status: number; created_by: number | null; assigned_to: number | null }
+    AttachmentRow & {
+      status: number;
+      created_by: number | null;
+      assigned_to: number | null;
+      manager_id: number | null;
+    }
   >(
     `SELECT a.id, a.ticket_id, a.file_name, a.file_path, a.file_type, a.file_size,
             a.created_at, u.id AS user_id, u.name AS user_name,
-            t.status, t.created_by, t.assigned_to
+            t.status, t.created_by, t.assigned_to, t.manager_id
      FROM ticket_attachments a
      JOIN users u ON u.id = a.uploaded_by
      JOIN tickets t ON t.id = a.ticket_id
-     WHERE a.id = $1`,
+     WHERE a.id = $1 AND t.deleted_at IS NULL`,
     [attachmentId]
   );
   const row = result.rows[0];
@@ -162,12 +163,12 @@ export async function readAttachment(
       status: codeToStatus(row.status),
       createdById: row.created_by,
       assignedToId: row.assigned_to,
+      managerId: row.manager_id,
     })
   ) {
     throw notFound("File not found.");
   }
 
-  // file_path hamesha hamara banaya UUID naam hai; phir bhi folder ke bahar na jaye
   const fullPath = path.join(STORAGE_DIR, path.basename(row.file_path));
   const data = await readFile(fullPath).catch(() => {
     throw notFound("File not found.");

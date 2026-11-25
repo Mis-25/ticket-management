@@ -7,9 +7,10 @@ import { useAuth } from "@/components/AuthProvider";
 const LINKS = [
   { href: "/tickets", label: "Tickets", permission: null },
   { href: "/users", label: "Users", permission: "user.manage" },
+  { href: "/roles", label: "Roles", permission: "user.manage" },
+  { href: "/processes", label: "Processes", permission: "process.manage" },
 ];
 
-/** Header ke right side: page links (koi user-select dropdown nahi) */
 export default function NavLinks() {
   const pathname = usePathname();
   const { user, can } = useAuth();

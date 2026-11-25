@@ -1,10 +1,5 @@
 import { Pool, PoolClient } from "pg";
 
-/**
- * PostgreSQL connection pool.
- * Dev mode mein hot reload ke time baar-baar naya connection na bane,
- * isliye pool ko globalThis mein save karte hain.
- */
 const globalForPg = globalThis as unknown as { pgPool?: Pool };
 
 export const pool: Pool =
@@ -17,10 +12,6 @@ if (process.env.NODE_ENV !== "production") {
   globalForPg.pgPool = pool;
 }
 
-/**
- * Kai queries ko ek transaction me chalata hai (BEGIN ... COMMIT).
- * Koi bhi query fail ho to ROLLBACK — aadha-adhoora data save nahi hota.
- */
 export async function withTransaction<T>(
   work: (client: PoolClient) => Promise<T>
 ): Promise<T> {

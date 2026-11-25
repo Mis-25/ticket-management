@@ -2,24 +2,13 @@ import { hasPermission } from "@/lib/auth";
 import { TicketPermissions, TicketStatus } from "@/types/ticket";
 import { SessionUser } from "@/types/user";
 
-/**
- * Ticket ke saare workflow + permission rules EK jagah.
- * Backend har action se pehle yahi check karta hai, aur frontend ko bhi
- * yahi result bhejta hai taaki sirf allowed buttons dikhein.
- *
- * Workflow:
- *   Open → Assigned → In Progress → Resolved → Closed
- *   In Progress ↔ On Hold
- *   Resolved / Closed → Reopened → Assigned / In Progress
- */
-
 export interface TicketAccessInfo {
   status: TicketStatus;
   createdById: number | null;
   assignedToId: number | null;
+  managerId: number | null;
 }
 
-/** Status jinse "assign / reassign" allowed hai */
 const ASSIGNABLE: TicketStatus[] = [
   "Open",
   "Assigned",
@@ -27,7 +16,6 @@ const ASSIGNABLE: TicketStatus[] = [
   "On Hold",
   "Reopened",
 ];
-/** Status jinse "start work" (→ In Progress) allowed hai */
 const STARTABLE: TicketStatus[] = ["Assigned", "On Hold", "Reopened"];
 
 export function canViewTicket(user: SessionUser, t: TicketAccessInfo): boolean {
@@ -36,6 +24,7 @@ export function canViewTicket(user: SessionUser, t: TicketAccessInfo): boolean {
     return true;
   if (hasPermission(user, "ticket.view_own") && t.createdById === user.id)
     return true;
+  if (hasPermission(user, "ticket.assign") && t.managerId === user.id) return true;
   return false;
 }
 
@@ -47,7 +36,6 @@ export function getTicketPermissions(
   const isCreator = t.createdById !== null && t.createdById === user.id;
   const isAssignee = t.assignedToId !== null && t.assignedToId === user.id;
   const viewAll = can("ticket.view_all");
-  // Admin har ticket par, Support Agent sirf apne assigned ticket par
   const isStaffOnTicket = viewAll || isAssignee;
   const isClosed = t.status === "Closed";
 
@@ -55,8 +43,13 @@ export function getTicketPermissions(
     can("ticket.close_confirm") && isCreator && t.status === "Resolved";
   const adminClose = can("ticket.close_any") && !isClosed;
 
+  const isTicketManager =
+    can("ticket.assign") &&
+    (t.managerId === null || t.managerId === user.id || can("user.manage"));
+
   return {
-    assign: can("ticket.assign") && ASSIGNABLE.includes(t.status),
+    assign: isTicketManager && ASSIGNABLE.includes(t.status),
+    unassign: isTicketManager && ASSIGNABLE.includes(t.status) && t.assignedToId !== null,
     start:
       can("ticket.start") &&
       isStaffOnTicket &&
@@ -66,14 +59,11 @@ export function getTicketPermissions(
     resolve:
       can("ticket.resolve") && isStaffOnTicket && t.status === "In Progress",
     close: confirmClose || adminClose,
-    // Employee "Resolved" ko confirm kare to reason optional; Admin close = reason zaroori
     closeNeedsReason: !confirmClose,
-    // Reopen sirf ticket banane wala (creator) kar sakta hai
     reopen:
       can("ticket.reopen") &&
-      isCreator &&
+      (isCreator || isTicketManager) &&
       (t.status === "Resolved" || t.status === "Closed"),
-    // Closed ticket par public reply band
     reply:
       can("comment.public") &&
       !isClosed &&
@@ -84,7 +74,6 @@ export function getTicketPermissions(
   };
 }
 
-/** Internal notes sirf Admin / assigned Support Agent dekh sakte hain. */
 export function canSeeInternal(user: SessionUser, t: TicketAccessInfo): boolean {
   return (
     hasPermission(user, "comment.internal") &&

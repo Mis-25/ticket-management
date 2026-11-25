@@ -1,15 +1,14 @@
 @import "tailwindcss";
 
-/* ===== Theme colors (image ke hisaab se) ===== */
 @theme {
-  --color-brand: #04786c;        /* teal - header, buttons */
-  --color-brand-dark: #03635a;   /* teal hover */
-  --color-brand-light: #e6f3f1;  /* teal light bg */
-  --color-navy: #1e3a8a;         /* logo text */
-  --color-row-alt: #eef2fb;      /* table alternate row */
-  --color-line: #dde3ec;         /* borders */
-  --color-ink: #111827;          /* main text */
-  --color-muted: #4b5563;        /* secondary text */
+  --color-brand: #04786c;
+  --color-brand-dark: #03635a;
+  --color-brand-light: #e6f3f1;
+  --color-navy: #1e3a8a;
+  --color-row-alt: #eef2fb;
+  --color-line: #dde3ec;
+  --color-ink: #111827;
+  --color-muted: #4b5563;
   --font-sans: Arial, Helvetica, sans-serif;
 }
 
@@ -18,7 +17,6 @@ body {
 }
 
 @layer components {
-  /* ----- Top header ----- */
   .app-header {
     @apply border-b border-line bg-white;
   }
@@ -41,7 +39,6 @@ body {
     @apply mx-auto max-w-7xl px-4 py-6 sm:px-6;
   }
 
-  /* ----- Page heading ----- */
   .page-title {
     @apply text-3xl font-bold text-ink;
   }
@@ -49,7 +46,6 @@ body {
     @apply mt-2 text-lg text-ink;
   }
 
-  /* ----- Buttons ----- */
   .btn-primary {
     @apply inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-brand px-6 py-3.5 text-xl font-bold text-white shadow-sm transition hover:bg-brand-dark focus:outline-none focus:ring-2 focus:ring-brand/40 disabled:cursor-not-allowed disabled:opacity-60;
   }
@@ -62,15 +58,61 @@ body {
   .btn-icon {
     @apply inline-flex h-14 w-14 items-center justify-center rounded-lg bg-brand text-white transition hover:bg-brand-dark focus:outline-none focus:ring-2 focus:ring-brand/40 disabled:cursor-not-allowed disabled:opacity-60;
   }
+  .btn-icon-danger {
+    @apply inline-flex h-14 w-14 items-center justify-center rounded-lg bg-red-600 text-white transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-300 disabled:cursor-not-allowed disabled:opacity-60;
+  }
+  .perm-group {
+    @apply mt-3 rounded-xl border border-slate-200 px-4 pb-3 pt-1;
+  }
+  .perm-group-title {
+    @apply px-1 text-base font-bold text-brand;
+  }
+  .perm-list {
+    @apply grid gap-2 sm:grid-cols-2;
+  }
+  .perm-option {
+    @apply flex cursor-pointer items-start gap-2 text-base text-slate-700;
+  }
+  .perm-checkbox {
+    @apply mt-1 h-5 w-5 shrink-0 accent-brand;
+  }
+  .perm-option-suggested {
+    @apply rounded-lg bg-brand-light px-2 py-1 ring-1 ring-brand/40;
+  }
+  .perm-option-extra {
+    @apply rounded-lg bg-amber-50 px-2 py-1 ring-1 ring-amber-300;
+  }
+  .perm-for {
+    @apply block text-sm text-slate-500;
+  }
+  .perm-for-match {
+    @apply font-bold text-brand;
+  }
+  .perm-extra-note {
+    @apply block text-sm font-semibold text-amber-700;
+  }
+  .suggest-bar {
+    @apply mt-2 flex flex-wrap items-center gap-3 rounded-xl border border-brand/30 bg-brand-light px-4 py-3;
+  }
+  .suggest-label {
+    @apply text-base font-bold text-brand;
+  }
+  .suggest-select {
+    @apply rounded-lg border border-slate-300 bg-white px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-brand/40;
+  }
+  .suggest-status {
+    @apply w-full text-sm text-slate-600;
+  }
+  .confirm-text {
+    @apply text-lg text-slate-700;
+  }
   .btn-close-ticket {
     @apply inline-flex h-14 items-center justify-center rounded-lg bg-brand px-5 text-lg font-bold text-white transition hover:bg-brand-dark focus:outline-none focus:ring-2 focus:ring-brand/40 disabled:cursor-not-allowed disabled:opacity-60;
   }
-  /* Chhota outline button (e.g. "+ Add user") */
   .btn-small {
     @apply inline-flex shrink-0 items-center justify-center rounded-lg border-2 border-brand bg-white px-4 py-2 text-base font-bold text-brand transition hover:bg-brand-light focus:outline-none focus:ring-2 focus:ring-brand/40;
   }
 
-  /* ----- Page layout ----- */
   .page-wrapper {
     @apply space-y-6;
   }
@@ -87,7 +129,6 @@ body {
     @apply font-bold underline;
   }
 
-  /* ----- Summary cards ----- */
   .stat-card {
     @apply rounded-xl border border-line bg-white p-5 shadow-sm;
   }
@@ -101,7 +142,6 @@ body {
     @apply mt-1 text-3xl font-bold text-brand;
   }
 
-  /* ----- Table ----- */
   .table-card {
     @apply overflow-hidden rounded-xl border border-line bg-white shadow-sm;
   }
@@ -135,7 +175,6 @@ body {
   .cell-break {
     @apply break-all;
   }
-  /* Naya bana user kuch second highlight rahe (zebra rows ko override karta hai) */
   .data-table tbody tr.row-highlight {
     @apply bg-brand-light;
   }
@@ -149,7 +188,6 @@ body {
     @apply py-10 text-center text-lg text-muted;
   }
 
-
   .tooltip {
     @apply pointer-events-none fixed z-50 max-h-52 w-96 max-w-[calc(100vw-1rem)] overflow-y-auto rounded-lg bg-slate-900 px-4 py-3 text-base leading-relaxed wrap-break-word whitespace-pre-wrap text-white shadow-xl;
   }
@@ -161,7 +199,6 @@ body {
     @apply rounded-lg border border-brand/30 bg-brand-light px-4 py-3 text-lg font-semibold text-brand;
   }
 
-  /* ----- Modal ----- */
   .modal-backdrop {
     @apply fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4;
   }
@@ -181,7 +218,6 @@ body {
     @apply rounded-md px-2 text-3xl leading-none text-white/80 transition hover:text-white focus:ring-2 focus:ring-white/60 focus:outline-none;
   }
 
-  /* ----- Form ----- */
   .form-label {
     @apply block text-lg text-ink;
   }
@@ -201,7 +237,6 @@ body {
     @apply mt-6 flex justify-end gap-3;
   }
 
-  /* ----- Details ----- */
   .detail-label {
     @apply text-sm font-bold tracking-wide text-muted uppercase;
   }
@@ -214,7 +249,6 @@ body {
   .details-grid {
     @apply grid grid-cols-2 gap-4;
   }
-  /* ----- Replies ----- */
   .reply-card {
     @apply space-y-4 rounded-xl border border-line bg-white p-5 shadow-sm;
   }
@@ -250,14 +284,12 @@ body {
     @apply max-h-64 overflow-y-auto leading-relaxed wrap-break-word whitespace-pre-wrap;
   }
 
-  /* ----- Header nav ----- */
   .app-nav {
     @apply ml-auto flex flex-wrap items-center gap-3;
   }
   .app-nav-links {
     @apply flex items-center gap-2;
   }
-  /* ----- First-time setup (Create Admin) ----- */
   .auth-wrapper {
     @apply flex justify-center py-10;
   }
@@ -271,7 +303,6 @@ body {
     @apply w-full py-3 text-lg;
   }
 
-  /* ----- Extra buttons ----- */
   .btn-success {
     @apply inline-flex items-center justify-center rounded-xl bg-green-700 px-5 py-2.5 text-base font-bold text-white transition hover:bg-green-800 focus:ring-2 focus:ring-green-300 focus:outline-none;
   }
@@ -282,7 +313,6 @@ body {
     @apply inline-flex items-center justify-center rounded-xl bg-red-600 px-5 py-2.5 text-base font-bold text-white transition hover:bg-red-700 focus:ring-2 focus:ring-red-300 focus:outline-none;
   }
 
-  /* ----- Status + priority badges ----- */
   .badge {
     @apply inline-flex items-center rounded-full border px-3 py-1 text-sm font-bold whitespace-nowrap;
   }
@@ -320,7 +350,6 @@ body {
     @apply border-red-300 bg-red-600 text-white;
   }
 
-  /* ----- Dashboard counts ----- */
   .stat-grid-8 {
     @apply grid grid-cols-2 gap-3 sm:grid-cols-4;
   }
@@ -358,7 +387,6 @@ body {
     @apply border-l-red-500;
   }
 
-  /* ----- Filters ----- */
   .filter-bar {
     @apply flex flex-wrap items-end gap-3 rounded-xl border border-line bg-white p-4 shadow-sm;
   }
@@ -375,7 +403,6 @@ body {
     @apply py-2;
   }
 
-  /* ----- Table cells ----- */
   .cell-title {
     @apply font-bold;
   }
@@ -389,7 +416,6 @@ body {
     @apply text-muted italic;
   }
 
-  /* ----- Ticket detail ----- */
   .ticket-number {
     @apply text-lg font-bold text-brand;
   }
@@ -442,7 +468,6 @@ body {
     @apply text-base text-muted;
   }
 
-  /* ----- Activity timeline ----- */
   .timeline {
     @apply relative space-y-4 border-l-2 border-line pl-6;
   }

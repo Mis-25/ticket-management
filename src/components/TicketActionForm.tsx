@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { ApiError, errorMessage } from "@/lib/apiClient";
 import { performTicketAction } from "@/lib/ticketApi";
-import { listSupportAgents } from "@/lib/userApi";
+import { listAssignees, UserOption } from "@/lib/userApi";
 import { REASON_LIMIT, TicketAction, TicketDetail } from "@/types/ticket";
 
 interface ActionConfig {
@@ -20,8 +20,17 @@ export function getActionConfig(action: TicketAction, ticket: TicketDetail): Act
       return {
         title: ticket.assignedTo ? "Reassign Ticket" : "Assign Ticket",
         submitLabel: ticket.assignedTo ? "Reassign" : "Assign",
-        help: "Select the support agent who will work on this ticket. Status becomes Assigned.",
+        help: "Select the person (Support Agent, Employee...) who will work on this ticket. Status becomes Assigned.",
         reasonLabel: "Assignment note (optional)",
+      };
+    case "unassign":
+      return {
+        title: "Clear Assignment",
+        submitLabel: "Clear Assignment",
+        help: `${ticket.assignedTo?.name ?? "The staff member"} will be removed from this ticket. It will show as Unassigned${
+          ticket.status === "Reopened" ? "" : " and the status becomes Open"
+        }.`,
+        reasonLabel: "Note (optional)",
       };
     case "start":
       return {
@@ -65,7 +74,7 @@ export function getActionConfig(action: TicketAction, ticket: TicketDetail): Act
       return {
         title: "Reopen Ticket",
         submitLabel: "Reopen Ticket",
-        help: "The previous conversation and history stay. Admin will reassign it.",
+        help: "The previous conversation and history stay. The staff member stays assigned; the manager can change it.",
         reasonLabel: "Reopen reason",
         reasonRequired: true,
       };
@@ -88,14 +97,14 @@ export default function TicketActionForm({
   const config = getActionConfig(action, ticket);
   const [reason, setReason] = useState("");
   const [assigneeId, setAssigneeId] = useState<number>(0);
-  const [agents, setAgents] = useState<{ id: number; name: string }[] | null>(null);
+  const [agents, setAgents] = useState<UserOption[] | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (action !== "assign") return;
-    listSupportAgents()
+    listAssignees()
       .then(setAgents)
       .catch((error) => setSubmitError(errorMessage(error, "Could not load agents.")));
   }, [action]);
@@ -105,7 +114,7 @@ export default function TicketActionForm({
     setSubmitError("");
 
     const newErrors: Record<string, string> = {};
-    if (action === "assign" && !assigneeId) newErrors.assigneeId = "Please select a support agent.";
+    if (action === "assign" && !assigneeId) newErrors.assigneeId = "Please select a person to assign.";
     if (config.reasonRequired && reason.trim() === "")
       newErrors.reason = `${config.reasonLabel} is required.`;
     setErrors(newErrors);
@@ -134,7 +143,7 @@ export default function TicketActionForm({
 
         {action === "assign" && (
           <div>
-            <label htmlFor="action-agent" className="form-label">Support Agent</label>
+            <label htmlFor="action-agent" className="form-label">Assign To</label>
             <select
               id="action-agent"
               value={assigneeId}
@@ -142,20 +151,23 @@ export default function TicketActionForm({
               className={`form-input ${errors.assigneeId ? "form-input-error" : ""}`}
               disabled={agents === null}
             >
-              <option value={0}>{agents === null ? "Loading..." : "Select agent"}</option>
+              <option value={0}>{agents === null ? "Loading..." : "Select person"}</option>
               {agents?.map((agent) => (
                 <option
                   key={agent.id}
                   value={agent.id}
                   disabled={agent.id === ticket.assignedTo?.id}
                 >
-                  {agent.name}
+                  {agent.name} ({agent.roleName})
                   {agent.id === ticket.assignedTo?.id ? " (current)" : ""}
                 </option>
               ))}
             </select>
             {agents?.length === 0 && (
-              <p className="form-hint">No active support agents. Add one from the Users page.</p>
+              <p className="form-hint">
+                Nobody can be assigned tickets yet. Give a role the &quot;Can be assigned
+                tickets&quot; permission on the Roles page.
+              </p>
             )}
             {errors.assigneeId && (
               <p className="form-error" role="alert">{errors.assigneeId}</p>

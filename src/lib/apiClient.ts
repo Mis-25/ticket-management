@@ -1,5 +1,3 @@
-/** Frontend → API calls ka ek common helper. */
-
 export class ApiError extends Error {
   status: number;
   fields: Record<string, string>;
@@ -29,9 +27,7 @@ export async function apiFetch<T>(url: string, init: RequestInit = {}): Promise<
       const data = await response.json();
       if (data?.error) message = data.error;
       if (data?.fields) fields = data.fields;
-    } catch {
-      // body JSON nahi hai — default message
-    }
+    } catch {}
     throw new ApiError(response.status, message, fields);
   }
   return response.json() as Promise<T>;
@@ -43,7 +39,8 @@ export const postJson = <T>(url: string, body: unknown) =>
 export const patchJson = <T>(url: string, body: unknown) =>
   apiFetch<T>(url, { method: "PATCH", body: JSON.stringify(body) });
 
-/** Error ko user ke padhne layak message me badlo */
+export const deleteJson = <T>(url: string) => apiFetch<T>(url, { method: "DELETE" });
+
 export function errorMessage(error: unknown, fallback = "Something went wrong."): string {
   return error instanceof Error && error.message ? error.message : fallback;
 }

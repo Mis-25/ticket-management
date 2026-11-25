@@ -3,10 +3,9 @@
 import { useState } from "react";
 import { ApiError, errorMessage } from "@/lib/apiClient";
 import { createUser } from "@/lib/userApi";
+import { useRoles } from "@/lib/useRoles";
 import {
   CreateUserInput,
-  ROLE_OPTIONS,
-  ROLES,
   RoleId,
   User,
   USER_LIMITS,
@@ -23,15 +22,15 @@ const EMPTY_FORM: CreateUserInput = {
   name: "",
   email: "",
   phoneNumber: "",
-  roleId: ROLES.EMPLOYEE,
+  roleId: 0,
 };
 
-/** Admin naya user banata hai: details + role. */
 export default function UserForm({ onCreated, onCancel }: UserFormProps) {
   const [form, setForm] = useState<CreateUserInput>(EMPTY_FORM);
   const [errors, setErrors] = useState<UserErrors>({});
   const [submitError, setSubmitError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { roles, rolesError } = useRoles();
 
   function updateField<K extends keyof CreateUserInput>(field: K, value: CreateUserInput[K]) {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -124,13 +123,17 @@ export default function UserForm({ onCreated, onCancel }: UserFormProps) {
             onChange={(e) => updateField("roleId", Number(e.target.value) as RoleId)}
             className={inputClass("roleId")}
           >
-            {ROLE_OPTIONS.map((role) => (
+            <option value={0}>Select role</option>
+            {roles.map((role) => (
               <option key={role.id} value={role.id}>
                 {role.name}
               </option>
             ))}
           </select>
           {errorFor("roleId")}
+          {rolesError && (
+            <p className="form-error" role="alert">{rolesError}</p>
+          )}
         </div>
 
         {submitError && (

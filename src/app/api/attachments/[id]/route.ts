@@ -2,7 +2,6 @@ import { requireUser } from "@/lib/auth";
 import { errorResponse, notFound } from "@/lib/httpError";
 import { readAttachment } from "@/services/attachmentService";
 
-// GET /api/attachments/12  → file download (ticket dekhne ki permission zaroori)
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }

@@ -8,10 +8,18 @@ import TicketForm from "@/components/TicketForm";
 import TicketList from "@/components/TicketList";
 import UserForm from "@/components/UserForm";
 import { errorMessage } from "@/lib/apiClient";
-import { createTicket, getTicketStats, listTickets } from "@/lib/ticketApi";
-import { listSupportAgents } from "@/lib/userApi";
+import ConfirmDeleteDialog from "@/components/ConfirmDeleteDialog";
+import {
+  createTicket,
+  deleteTicket,
+  getTicketStats,
+  listProcesses,
+  listTickets,
+} from "@/lib/ticketApi";
+import { listAssignees } from "@/lib/userApi";
 import {
   CreateTicketInput,
+  Process,
   Ticket,
   TICKET_PRIORITIES,
   TICKET_STATUSES,
@@ -33,11 +41,16 @@ const STAT_CARDS: { key: "total" | TicketStatus; label: string; className: strin
   { key: "Reopened", label: "Reopened", className: "stat-reopened" },
 ];
 
-const SUBTITLE: Record<string, string> = {
-  Admin: "All tickets in the system.",
-  "Support Agent": "Tickets assigned to you.",
-  Employee: "Tickets you have raised.",
-};
+function pageSubtitle(can: (p: string) => boolean): string {
+  if (can("ticket.view_all")) return "All tickets in the system.";
+  const parts: string[] = [];
+  if (can("ticket.view_own")) parts.push("tickets you raised");
+  if (can("ticket.view_assigned")) parts.push("tickets assigned to you");
+  if (can("ticket.assign")) parts.push("tickets where you are the assigning manager");
+  if (parts.length === 0) return "";
+  const text = parts.join(", ");
+  return text.charAt(0).toUpperCase() + text.slice(1) + ".";
+}
 
 export default function TicketsPage() {
   const user = useRequireAuth();
@@ -53,12 +66,14 @@ export default function TicketsPage() {
   const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const [deletingTicket, setDeletingTicket] = useState<Ticket | null>(null);
+  const [processes, setProcesses] = useState<Process[]>([]);
+  const closeDeleteDialog = useCallback(() => setDeletingTicket(null), []);
 
   const closeTicketModal = useCallback(() => setIsTicketModalOpen(false), []);
   const closeUserModal = useCallback(() => setIsUserModalOpen(false), []);
   const canAssign = can("ticket.assign");
 
-  // Tickets (filters ke saath) + counts — database se
   useEffect(() => {
     if (!user) return;
     let isActive = true;
@@ -86,17 +101,28 @@ export default function TicketsPage() {
     };
   }, [user, filters, reloadKey]);
 
-  // Admin ke liye "Assigned To" filter me agents ki list
+  useEffect(() => {
+    if (!user) return;
+    listProcesses().then(setProcesses).catch(() => setProcesses([]));
+  }, [user]);
+
   useEffect(() => {
     if (!user || !canAssign) return;
-    listSupportAgents().then(setAgents).catch(() => setAgents([]));
+    listAssignees().then(setAgents).catch(() => setAgents([]));
   }, [user, canAssign]);
 
   if (!user) return <p className="reply-empty">Loading...</p>;
 
   async function handleCreate(input: CreateTicketInput) {
-    await createTicket(input); // error TicketForm me dikhega
+    await createTicket(input);
     setIsTicketModalOpen(false);
+    setReloadKey((k) => k + 1);
+  }
+
+  async function handleDeleteTicket() {
+    if (!deletingTicket) return;
+    await deleteTicket(deletingTicket.id);
+    setDeletingTicket(null);
     setReloadKey((k) => k + 1);
   }
 
@@ -121,7 +147,7 @@ export default function TicketsPage() {
       <div className="page-head">
         <div>
           <h2 className="page-title">Tickets</h2>
-          <p className="page-subtitle">{SUBTITLE[user.roleName] ?? ""}</p>
+          <p className="page-subtitle">{pageSubtitle(can)}</p>
         </div>
         <div className="page-actions">
           {can("user.manage") && (
@@ -137,7 +163,6 @@ export default function TicketsPage() {
         </div>
       </div>
 
-      {/* Dashboard counts — sab database se. Card dabao = us status ka filter */}
       <section className="stat-grid-8">
         {STAT_CARDS.map((card) => {
           const isActive =
@@ -159,8 +184,22 @@ export default function TicketsPage() {
         })}
       </section>
 
-      {/* Filters */}
       <section className="filter-bar" aria-label="Filters">
+        <div className="filter-item">
+          <label htmlFor="f-process" className="filter-label">Process</label>
+          <select
+            id="f-process"
+            value={filters.processId ?? ""}
+            onChange={(e) => setFilter("processId", e.target.value ? Number(e.target.value) : "")}
+            className="filter-input"
+          >
+            <option value="">All Processes</option>
+            {processes.map((p) => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+        </div>
+
         <div className="filter-item">
           <label htmlFor="f-status" className="filter-label">Status</label>
           <select
@@ -266,8 +305,24 @@ export default function TicketsPage() {
                 ? 'No tickets yet. Click "Add ticket" to create one.'
                 : "No tickets to show."
           }
+          onDelete={can("ticket.delete") ? setDeletingTicket : undefined}
         />
       </section>
+
+      <ConfirmDeleteDialog
+        isOpen={deletingTicket !== null}
+        title="Delete Ticket"
+        message={
+          deletingTicket && (
+            <>
+              Are you sure you want to delete ticket <strong>{deletingTicket.id}</strong> (
+              {deletingTicket.title})? It will be removed from all lists.
+            </>
+          )
+        }
+        onConfirm={handleDeleteTicket}
+        onClose={closeDeleteDialog}
+      />
 
       <Modal isOpen={isTicketModalOpen} title="New Ticket" onClose={closeTicketModal}>
         <TicketForm onCreate={handleCreate} onCancel={closeTicketModal} />

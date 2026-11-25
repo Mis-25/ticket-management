@@ -4,10 +4,6 @@ import { asText, badRequest, errorResponse, readJson } from "@/lib/httpError";
 import { performTicketAction } from "@/services/ticketService";
 import { TICKET_ACTIONS, TicketAction } from "@/types/ticket";
 
-// POST /api/tickets/TKT-6/actions
-// body: { action: "assign"|"start"|"hold"|"resolve"|"close"|"reopen",
-//         reason?: string, assigneeId?: number }
-// Permission + allowed transition backend par check hota hai.
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }

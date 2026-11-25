@@ -1,8 +1,10 @@
-import { apiFetch, postJson } from "@/lib/apiClient";
+import { apiFetch, deleteJson, patchJson, postJson } from "@/lib/apiClient";
 import {
   ActivityEntry,
   CreateTicketInput,
   Process,
+  ProcessInput,
+  ProcessRow,
   Ticket,
   TicketActionInput,
   TicketAttachment,
@@ -28,10 +30,23 @@ export const getTicketStats = () => apiFetch<TicketStats>(`${API_URL}/stats`);
 
 export const listProcesses = () => apiFetch<Process[]>("/api/processes");
 
+export const listAllProcesses = () => apiFetch<ProcessRow[]>("/api/processes?all=1");
+
+export const createProcess = (input: ProcessInput) =>
+  postJson<ProcessRow>("/api/processes", input);
+
+export const updateProcess = (id: number, input: ProcessInput) =>
+  patchJson<ProcessRow>(`/api/processes/${id}`, input);
+
+export const deleteProcess = (id: number) =>
+  deleteJson<{ ok: true }>(`/api/processes/${id}`);
+
 export const createTicket = (input: CreateTicketInput) =>
   postJson<Ticket>(API_URL, input);
 
 export const getTicket = (id: string) => apiFetch<TicketDetail>(ticketUrl(id));
+
+export const deleteTicket = (id: string) => deleteJson<{ ok: true }>(ticketUrl(id));
 
 export const performTicketAction = (id: string, input: TicketActionInput) =>
   postJson<TicketDetail>(`${ticketUrl(id)}/actions`, input);

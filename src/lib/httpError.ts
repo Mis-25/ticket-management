@@ -1,10 +1,6 @@
 import { unstable_rethrow } from "next/navigation";
 import { NextResponse } from "next/server";
 
-/**
- * API me jaan-boojh kar bheja gaya error (401, 403, 404, 400, 409...).
- * Route handlers isko pakad kar sahi HTTP response bhejte hain.
- */
 export class HttpError extends Error {
   status: number;
   fields?: Record<string, string>;
@@ -24,10 +20,7 @@ export const notFound = (message = "Not found.") => new HttpError(404, message);
 export const badRequest = (message: string, fields?: Record<string, string>) =>
   new HttpError(400, message, fields);
 
-/** Kisi bhi error ko JSON response me badalta hai. Unknown error = 500. */
 export function errorResponse(error: unknown, context: string) {
-  // Next.js ki andar wali errors (jaise build ke time cookies() ka prerender
-  // signal) ko nahi pakadna — Next.js ko wapas do.
   unstable_rethrow(error);
 
   if (error instanceof HttpError) {
@@ -43,7 +36,6 @@ export function errorResponse(error: unknown, context: string) {
   );
 }
 
-/** Request body ko JSON object ke roop me padhta hai (galat JSON = {}). */
 export async function readJson(request: Request): Promise<Record<string, unknown>> {
   try {
     const body = await request.json();

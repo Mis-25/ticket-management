@@ -8,6 +8,7 @@ import {
   TicketAccessInfo,
 } from "@/lib/ticketRules";
 import { findActiveProcess } from "@/services/processService";
+import { findUserWithPermission } from "@/services/userService";
 import {
   codeToStatus,
   CreateTicketInput,
@@ -21,11 +22,10 @@ import {
   TicketStats,
   TicketStatus,
 } from "@/types/ticket";
-import { ROLES, SessionUser } from "@/types/user";
+import { SessionUser } from "@/types/user";
 
 export const ID_PREFIX = "TKT-";
 
-/** "TKT-6" → 6. Galat ID ho to null. */
 export function parseTicketId(id: string): number | null {
   const numericId = Number(id.replace(ID_PREFIX, ""));
   return Number.isInteger(numericId) && numericId > 0 ? numericId : null;
@@ -45,6 +45,8 @@ interface TicketRow {
   assigned_to: number | null;
   assigned_to_name: string | null;
   assigned_at: Date | null;
+  manager_id: number | null;
+  manager_name: string | null;
   resolution_note: string | null;
   resolved_at: Date | null;
   closed_at: Date | null;
@@ -58,11 +60,13 @@ const TICKET_SELECT = `
          t.process_id, pr.name AS process_name,
          t.created_by, cb.name AS created_by_name,
          t.assigned_to, at.name AS assigned_to_name, t.assigned_at,
+         t.manager_id, mg.name AS manager_name,
          t.resolution_note, t.resolved_at, t.closed_at, t.reopened_at,
          t.created_at, t.updated_at
   FROM tickets t
   LEFT JOIN users cb ON cb.id = t.created_by
   LEFT JOIN users at ON at.id = t.assigned_to
+  LEFT JOIN users mg ON mg.id = t.manager_id
   LEFT JOIN processes pr ON pr.id = t.process_id`;
 
 const iso = (d: Date | null) => (d ? d.toISOString() : null);
@@ -87,6 +91,10 @@ function toTicket(row: TicketRow): Ticket {
         ? { id: row.assigned_to, name: row.assigned_to_name ?? "Unknown" }
         : null,
     assignedAt: iso(row.assigned_at),
+    manager:
+      row.manager_id !== null
+        ? { id: row.manager_id, name: row.manager_name ?? "Unknown" }
+        : null,
     resolutionNote: row.resolution_note,
     resolvedAt: iso(row.resolved_at),
     closedAt: iso(row.closed_at),
@@ -101,13 +109,10 @@ function accessInfo(row: TicketRow): TicketAccessInfo {
     status: codeToStatus(row.status),
     createdById: row.created_by,
     assignedToId: row.assigned_to,
+    managerId: row.manager_id,
   };
 }
 
-/**
- * User ke role ke hisaab se WHERE condition:
- * Admin = sab, Support Agent = assigned, Employee = khud ke.
- */
 function scopeCondition(
   user: SessionUser,
   params: unknown[]
@@ -122,6 +127,10 @@ function scopeCondition(
     params.push(user.id);
     parts.push(`t.created_by = $${params.length}`);
   }
+  if (hasPermission(user, "ticket.assign")) {
+    params.push(user.id);
+    parts.push(`t.manager_id = $${params.length}`);
+  }
   return parts.length ? `(${parts.join(" OR ")})` : null;
 }
 
@@ -133,7 +142,7 @@ export async function listTickets(
   const scope = scopeCondition(user, params);
   if (!scope) return [];
 
-  const where = [scope];
+  const where = [scope, "t.deleted_at IS NULL"];
   if (filters.status) {
     params.push(statusToCode(filters.status));
     where.push(`t.status = $${params.length}`);
@@ -141,6 +150,10 @@ export async function listTickets(
   if (filters.priority) {
     params.push(filters.priority);
     where.push(`t.priority = $${params.length}`);
+  }
+  if (filters.processId) {
+    params.push(filters.processId);
+    where.push(`t.process_id = $${params.length}`);
   }
   if (filters.assignedTo === "unassigned") {
     where.push("t.assigned_to IS NULL");
@@ -154,7 +167,6 @@ export async function listTickets(
   }
   if (filters.to) {
     params.push(filters.to);
-    // "to" date poora din include karo
     where.push(`t.created_at < ($${params.length}::date + 1)`);
   }
 
@@ -167,7 +179,6 @@ export async function listTickets(
   return result.rows.map(toTicket);
 }
 
-/** Dashboard counts — sirf user ko dikhne wale tickets, database se. */
 export async function getTicketStats(user: SessionUser): Promise<TicketStats> {
   const stats = { total: 0 } as TicketStats;
   for (const s of TICKET_STATUSES) stats[s] = 0;
@@ -178,7 +189,7 @@ export async function getTicketStats(user: SessionUser): Promise<TicketStats> {
 
   const result = await pool.query<{ status: number; count: number }>(
     `SELECT t.status, COUNT(*)::int AS count
-     FROM tickets t WHERE ${scope}
+     FROM tickets t WHERE ${scope} AND t.deleted_at IS NULL
      GROUP BY t.status`,
     params
   );
@@ -195,16 +206,12 @@ async function loadTicketRow(
   lock = false
 ): Promise<TicketRow | null> {
   const result = await db.query<TicketRow>(
-    `${TICKET_SELECT} WHERE t.id = $1 ${lock ? "FOR UPDATE OF t" : ""}`,
+    `${TICKET_SELECT} WHERE t.id = $1 AND t.deleted_at IS NULL ${lock ? "FOR UPDATE OF t" : ""}`,
     [numericId]
   );
   return result.rows[0] ?? null;
 }
 
-/**
- * Ticket jo user dekh sakta hai. Na mile ya access na ho → 404
- * (dusre ke ticket ka hona bhi pata na chale).
- */
 export async function getVisibleTicketRow(
   user: SessionUser,
   ticketId: string
@@ -229,8 +236,6 @@ export async function getTicketDetail(
   const row = await getVisibleTicketRow(user, ticketId);
   return { ...toTicket(row), can: getTicketPermissions(user, accessInfo(row)) };
 }
-
-// ---------- History helpers (hamesha transaction ke andar) ----------
 
 export async function logActivity(
   client: PoolClient,
@@ -284,10 +289,8 @@ async function logStatusChange(
   );
 }
 
-// ---------- Create ----------
-
 export async function createTicket(
-  user: SessionUser,
+  _user: SessionUser,
   input: CreateTicketInput
 ): Promise<Ticket> {
   return withTransaction(async (client) => {
@@ -298,17 +301,27 @@ export async function createTicket(
       });
     }
 
+    const manager = await findUserWithPermission(client, input.managerId, "ticket.assign");
+    if (!manager) {
+      throw badRequest("Please select a valid manager.", {
+        managerId: "Please select a valid manager.",
+      });
+    }
+
+    const creatorId = manager.id;
+
     const inserted = await client.query<{ id: number }>(
-      `INSERT INTO tickets (title, description, priority, process_id, status, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO tickets (title, description, priority, process_id, manager_id, status, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING id`,
       [
         input.title.trim(),
         input.description.trim(),
         input.priority,
         selectedProcess.id,
+        manager.id,
         statusToCode("Open"),
-        user.id,
+        creatorId,
       ]
     );
     const ticketId = inserted.rows[0].id;
@@ -317,23 +330,21 @@ export async function createTicket(
       ticketId,
       oldStatus: null,
       newStatus: "Open",
-      userId: user.id,
+      userId: creatorId,
     });
     await logActivity(client, {
       ticketId,
-      userId: user.id,
+      userId: creatorId,
       actionType: "Ticket Created",
       oldValue: null,
       newValue: "Open",
-      description: `Process: ${selectedProcess.name}. Priority: ${input.priority}`,
+      description: `Process: ${selectedProcess.name}. Priority: ${input.priority}. Assigning Manager: ${manager.name}`,
     });
 
     const row = await loadTicketRow(client, ticketId);
     return toTicket(row!);
   });
 }
-
-// ---------- Workflow actions ----------
 
 function requireReason(reason: string | undefined, label: string): string {
   const value = (reason ?? "").trim();
@@ -345,7 +356,6 @@ function requireReason(reason: string | undefined, label: string): string {
   return value;
 }
 
-/** Optional note: khali = null, bahut lamba = 400 error. */
 function optionalNote(value: string | undefined): string | null {
   const text = (value ?? "").trim();
   if (text.length > REASON_LIMIT)
@@ -355,17 +365,6 @@ function optionalNote(value: string | undefined): string | null {
   return text || null;
 }
 
-/**
- * Ek workflow action (assign / start / hold / resolve / close / reopen).
- * Sab kuch EK transaction me:
- *   1. Ticket row lock (FOR UPDATE) — do log ek saath change na kar sakein
- *   2. Permission + allowed transition check (locked data par)
- *   3. tickets update
- *   4. ticket_status_history insert (status badla ho to)
- *   5. ticket_assignments insert (assignment badla ho to)
- *   6. ticket_activity_log insert
- * Kuch bhi fail → ROLLBACK, data kabhi inconsistent nahi hota.
- */
 export async function performTicketAction(
   user: SessionUser,
   ticketId: string,
@@ -407,29 +406,24 @@ export async function performTicketAction(
       case "assign": {
         if (!can.assign) throw notAllowed();
         const assigneeId = input.assigneeId;
-        if (!Number.isInteger(assigneeId)) {
-          throw badRequest("Please select a support agent.", {
-            assigneeId: "Please select a support agent.",
+        if (assigneeId === undefined || !Number.isInteger(assigneeId)) {
+          throw badRequest("Please select a person to assign.", {
+            assigneeId: "Please select a person to assign.",
           });
         }
         if (assigneeId === row.assigned_to) {
-          throw badRequest("Ticket is already assigned to this agent.", {
-            assigneeId: "Ticket is already assigned to this agent.",
+          throw badRequest("Ticket is already assigned to this person.", {
+            assigneeId: "Ticket is already assigned to this person.",
           });
         }
-        const agent = await client.query<{ id: number; name: string }>(
-          `SELECT id, name FROM users
-           WHERE id = $1 AND role_id = $2 AND status = 'active'`,
-          [assigneeId, ROLES.SUPPORT_AGENT]
-        );
-        if (!agent.rows[0]) {
-          throw badRequest("Selected user is not an active support agent.", {
-            assigneeId: "Selected user is not an active support agent.",
+        const assignee = await findUserWithPermission(client, assigneeId, "ticket.view_assigned");
+        if (!assignee) {
+          throw badRequest("This user cannot be assigned tickets.", {
+            assigneeId: "This user cannot be assigned tickets.",
           });
         }
         note = optionalNote(input.reason);
 
-        // Purana assignment band karo (history overwrite nahi hoti)
         await client.query(
           `UPDATE ticket_assignments SET unassigned_at = NOW()
            WHERE ticket_id = $1 AND unassigned_at IS NULL`,
@@ -453,7 +447,7 @@ export async function performTicketAction(
         activity = {
           actionType: isReassign ? "Ticket Reassigned" : "Ticket Assigned",
           oldValue: row.assigned_to_name ?? "Unassigned",
-          newValue: agent.rows[0].name,
+          newValue: assignee.name,
           description: details.length ? details.join(". ") : null,
         };
         break;
@@ -518,6 +512,31 @@ export async function performTicketAction(
         break;
       }
 
+      case "unassign": {
+        if (!can.unassign) throw notAllowed();
+        note = optionalNote(input.reason);
+
+        await client.query(
+          `UPDATE ticket_assignments SET unassigned_at = NOW()
+           WHERE ticket_id = $1 AND unassigned_at IS NULL`,
+          [numericId]
+        );
+        sets.push("assigned_to = NULL", "assigned_at = NULL");
+
+        if (oldStatus !== "Reopened") newStatus = "Open";
+
+        const details: string[] = [];
+        if (oldStatus !== newStatus) details.push(`Status: ${oldStatus} → ${newStatus}`);
+        if (note) details.push(`Note: ${note}`);
+        activity = {
+          actionType: "Ticket Unassigned",
+          oldValue: row.assigned_to_name ?? "Unassigned",
+          newValue: "Unassigned",
+          description: details.length ? details.join(". ") : null,
+        };
+        break;
+      }
+
       case "reopen": {
         if (!can.reopen) throw notAllowed();
         reason = requireReason(input.reason, "Reopen reason");
@@ -562,5 +581,25 @@ export async function performTicketAction(
       ...toTicket(updated),
       can: getTicketPermissions(user, accessInfo(updated)),
     };
+  });
+}
+
+export async function deleteTicket(user: SessionUser, ticketId: string): Promise<void> {
+  if (!hasPermission(user, "ticket.delete")) throw forbidden();
+  const numericId = parseTicketId(ticketId);
+  if (numericId === null) throw notFound("Ticket not found.");
+
+  await withTransaction(async (client) => {
+    const result = await client.query(
+      `UPDATE tickets SET deleted_at = NOW(), deleted_by = $2, updated_at = NOW()
+       WHERE id = $1 AND deleted_at IS NULL`,
+      [numericId, user.id]
+    );
+    if (result.rowCount === 0) throw notFound("Ticket not found.");
+    await client.query(
+      `UPDATE ticket_assignments SET unassigned_at = NOW()
+       WHERE ticket_id = $1 AND unassigned_at IS NULL`,
+      [numericId]
+    );
   });
 }

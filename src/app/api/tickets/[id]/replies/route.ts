@@ -6,7 +6,6 @@ import { CommentType, CreateReplyInput, validateReply } from "@/types/reply";
 
 type Params = { params: Promise<{ id: string }> };
 
-// GET /api/tickets/TKT-6/replies  → comments (internal notes sirf staff ko)
 export async function GET(_request: Request, { params }: Params) {
   try {
     const user = await requireUser();
@@ -17,8 +16,6 @@ export async function GET(_request: Request, { params }: Params) {
   }
 }
 
-// POST /api/tickets/TKT-6/replies   body: { message, commentType }
-// Reply logged-in user ke naam se save hota hai (frontend se user ID nahi li jaati)
 export async function POST(request: Request, { params }: Params) {
   try {
     const user = await requireUser();
