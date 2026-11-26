@@ -16,7 +16,7 @@ const ASSIGNABLE: TicketStatus[] = [
   "On Hold",
   "Reopened",
 ];
-const STARTABLE: TicketStatus[] = ["Assigned", "On Hold", "Reopened"];
+const STARTABLE: TicketStatus[] = ["Open", "Assigned", "On Hold", "Reopened"];
 
 export function canViewTicket(user: SessionUser, t: TicketAccessInfo): boolean {
   if (hasPermission(user, "ticket.view_all")) return true;
@@ -50,11 +50,7 @@ export function getTicketPermissions(
   return {
     assign: isTicketManager && ASSIGNABLE.includes(t.status),
     unassign: isTicketManager && ASSIGNABLE.includes(t.status) && t.assignedToId !== null,
-    start:
-      can("ticket.start") &&
-      isStaffOnTicket &&
-      t.assignedToId !== null &&
-      STARTABLE.includes(t.status),
+    start: can("ticket.start") && isAssignee && STARTABLE.includes(t.status),
     hold: can("ticket.hold") && isStaffOnTicket && t.status === "In Progress",
     resolve:
       can("ticket.resolve") && isStaffOnTicket && t.status === "In Progress",

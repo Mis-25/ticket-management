@@ -290,6 +290,15 @@ body {
   .app-nav-links {
     @apply flex items-center gap-2;
   }
+  .nav-user {
+    @apply flex flex-col items-end border-l border-line pl-3 leading-tight;
+  }
+  .nav-user-name {
+    @apply text-base font-bold text-ink;
+  }
+  .nav-user-role {
+    @apply text-sm text-muted;
+  }
   .auth-wrapper {
     @apply flex justify-center py-10;
   }

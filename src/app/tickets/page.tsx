@@ -141,6 +141,7 @@ export default function TicketsPage() {
   }
 
   const hasFilters = Object.keys(filters).length > 0;
+  const isAssignedToMe = filters.assignedTo === "me";
 
   return (
     <div className="page-wrapper">
@@ -235,7 +236,7 @@ export default function TicketsPage() {
             <label htmlFor="f-assignee" className="filter-label">Assigned To</label>
             <select
               id="f-assignee"
-              value={filters.assignedTo ?? ""}
+              value={filters.assignedTo === "me" ? "" : (filters.assignedTo ?? "")}
               onChange={(e) =>
                 setFilter(
                   "assignedTo",
@@ -280,6 +281,15 @@ export default function TicketsPage() {
             className="filter-input"
           />
         </div>
+
+        <button
+          type="button"
+          onClick={() => setFilter("assignedTo", isAssignedToMe ? "" : "me")}
+          className={`${isAssignedToMe ? "btn-submit" : "btn-secondary"} filter-reset`}
+          aria-pressed={isAssignedToMe}
+        >
+          Assigned to Me
+        </button>
 
         {hasFilters && (
           <button type="button" onClick={() => setFilters({})} className="btn-secondary filter-reset">

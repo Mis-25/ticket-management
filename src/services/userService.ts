@@ -1,6 +1,7 @@
 import { PoolClient } from "pg";
 import { pool, withTransaction } from "@/lib/db";
 import { badRequest, HttpError, notFound } from "@/lib/httpError";
+import { hashPassword } from "@/lib/password";
 import {
   CreateUserInput,
   RoleId,
@@ -128,14 +129,16 @@ async function getUser(id: number): Promise<User> {
 
 export async function createUser(input: CreateUserInput): Promise<User> {
   await assertRoleExists(input.roleId);
+  const passwordHash = await hashPassword(input.password);
   try {
     const result = await pool.query<{ id: number }>(
-      `INSERT INTO users (name, email, phone_number, role_id)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO users (name, email, phone_number, role_id, password_hash)
+       VALUES ($1, $2, $3, $4, $5)
        ON CONFLICT (email) DO UPDATE
          SET name = EXCLUDED.name,
              phone_number = EXCLUDED.phone_number,
              role_id = EXCLUDED.role_id,
+             password_hash = EXCLUDED.password_hash,
              status = 'active',
              created_at = NOW(),
              updated_at = NOW()
@@ -146,6 +149,7 @@ export async function createUser(input: CreateUserInput): Promise<User> {
         input.email.trim().toLowerCase(),
         input.phoneNumber.trim(),
         input.roleId,
+        passwordHash,
       ]
     );
     if (!result.rows[0]) throw duplicateEmail();
@@ -182,6 +186,8 @@ export async function updateUser(
   if (input.phoneNumber !== undefined) add("phone_number", input.phoneNumber.trim());
   if (input.roleId !== undefined) add("role_id", input.roleId);
   if (input.status !== undefined) add("status", input.status);
+  const passwordChanged = !!input.password;
+  if (input.password) add("password_hash", await hashPassword(input.password));
 
   if (input.roleId !== undefined) await assertRoleExists(input.roleId);
 
@@ -193,7 +199,7 @@ export async function updateUser(
     );
     if (result.rowCount === 0) throw notFound("User not found.");
 
-    if (input.status === "inactive") {
+    if (input.status === "inactive" || (passwordChanged && id !== admin.id)) {
       await client.query("DELETE FROM user_sessions WHERE user_id = $1", [id]);
     }
   });
@@ -244,33 +250,35 @@ export async function deleteUser(admin: SessionUser, id: number): Promise<void> 
   });
 }
 
+const ADMIN_WITH_LOGIN = `SELECT 1 FROM users
+  WHERE role_id = $1 AND status = 'active' AND password_hash IS NOT NULL LIMIT 1`;
+
 export async function isSetupNeeded(): Promise<boolean> {
   const result = await pool.query(
-    `SELECT 1 FROM users WHERE role_id = $1 AND status = 'active' LIMIT 1`,
+    ADMIN_WITH_LOGIN,
     [ROLES.ADMIN]
   );
   return result.rowCount === 0;
 }
 
 export async function createFirstAdmin(input: CreateUserInput): Promise<{ id: number }> {
+  const passwordHash = await hashPassword(input.password);
   return withTransaction(async (client) => {
     await client.query("SELECT pg_advisory_xact_lock(424242)");
-    const existingAdmin = await client.query(
-      `SELECT 1 FROM users WHERE role_id = $1 AND status = 'active' LIMIT 1`,
-      [ROLES.ADMIN]
-    );
+    const existingAdmin = await client.query(ADMIN_WITH_LOGIN, [ROLES.ADMIN]);
     if (existingAdmin.rowCount) {
       throw new HttpError(409, "An Admin already exists.");
     }
 
     const result = await client.query<{ id: number }>(
-      `INSERT INTO users (name, email, phone_number, role_id, status)
-       VALUES ($1, $2, $3, $4, 'active')
+      `INSERT INTO users (name, email, phone_number, role_id, status, password_hash)
+       VALUES ($1, $2, $3, $4, 'active', $5)
        ON CONFLICT (email) DO UPDATE
          SET name = EXCLUDED.name,
              phone_number = EXCLUDED.phone_number,
              role_id = EXCLUDED.role_id,
              status = 'active',
+             password_hash = EXCLUDED.password_hash,
              updated_at = NOW()
        RETURNING id`,
       [
@@ -278,8 +286,20 @@ export async function createFirstAdmin(input: CreateUserInput): Promise<{ id: nu
         input.email.trim().toLowerCase(),
         input.phoneNumber.trim(),
         ROLES.ADMIN,
+        passwordHash,
       ]
     );
     return result.rows[0];
   });
+}
+
+export async function findLoginUser(
+  email: string
+): Promise<{ id: number; passwordHash: string | null } | null> {
+  const result = await pool.query<{ id: number; password_hash: string | null }>(
+    `SELECT id, password_hash FROM users WHERE email = $1 AND status = 'active'`,
+    [email.trim().toLowerCase()]
+  );
+  const row = result.rows[0];
+  return row ? { id: row.id, passwordHash: row.password_hash } : null;
 }

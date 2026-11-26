@@ -23,6 +23,7 @@ export async function POST(request: Request) {
       email: asText(body.email),
       phoneNumber: asText(body.phoneNumber),
       roleId: body.roleId as RoleId,
+      password: asText(body.password),
     };
     const errors = validateUser(input);
     if (Object.keys(errors).length > 0) {

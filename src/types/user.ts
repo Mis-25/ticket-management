@@ -37,6 +37,7 @@ export interface CreateUserInput {
   email: string;
   phoneNumber: string;
   roleId: RoleId;
+  password: string;
 }
 
 export interface UpdateUserInput {
@@ -44,19 +45,22 @@ export interface UpdateUserInput {
   phoneNumber?: string;
   roleId?: RoleId;
   status?: UserStatus;
+  password?: string;
 }
 
 export const USER_LIMITS = {
   name: 100,
   email: 255,
   phoneNumber: 20,
+  passwordMin: 6,
+  passwordMax: 100,
 } as const;
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_PATTERN = /^\+?[0-9\s-]{10,20}$/;
 
 export type UserErrors = Partial<
-  Record<"name" | "email" | "phoneNumber" | "roleId", string>
+  Record<"name" | "email" | "phoneNumber" | "roleId" | "password", string>
 >;
 
 function checkName(name: string, errors: UserErrors) {
@@ -72,6 +76,14 @@ function checkPhone(phone: string, errors: UserErrors) {
     errors.phoneNumber = "Please enter a valid phone number (min 10 digits).";
 }
 
+function checkPassword(password: string, errors: UserErrors) {
+  if (password === "") errors.password = "Password is required.";
+  else if (password.length < USER_LIMITS.passwordMin)
+    errors.password = `Password must be at least ${USER_LIMITS.passwordMin} characters.`;
+  else if (password.length > USER_LIMITS.passwordMax)
+    errors.password = `Password must be at most ${USER_LIMITS.passwordMax} characters.`;
+}
+
 export function validateUser(input: CreateUserInput): UserErrors {
   const errors: UserErrors = {};
   checkName(input.name, errors);
@@ -84,6 +96,7 @@ export function validateUser(input: CreateUserInput): UserErrors {
   checkPhone(input.phoneNumber, errors);
 
   if (!isRoleId(input.roleId)) errors.roleId = "Please select a role.";
+  checkPassword(input.password, errors);
   return errors;
 }
 
@@ -93,6 +106,7 @@ export function validateUserUpdate(input: UpdateUserInput): UserErrors {
   if (input.phoneNumber !== undefined) checkPhone(input.phoneNumber, errors);
   if (input.roleId !== undefined && !isRoleId(input.roleId))
     errors.roleId = "Please select a role.";
+  if (input.password) checkPassword(input.password, errors);
   return errors;
 }
 

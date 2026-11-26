@@ -18,6 +18,7 @@ export async function PATCH(
     if ("name" in body) input.name = asText(body.name);
     if ("phoneNumber" in body) input.phoneNumber = asText(body.phoneNumber);
     if ("roleId" in body) input.roleId = body.roleId as RoleId;
+    if ("password" in body) input.password = asText(body.password);
     if ("status" in body) {
       if (body.status !== "active" && body.status !== "inactive")
         throw badRequest("Invalid status.");

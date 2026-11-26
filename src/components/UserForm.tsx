@@ -23,6 +23,7 @@ const EMPTY_FORM: CreateUserInput = {
   email: "",
   phoneNumber: "",
   roleId: 0,
+  password: "",
 };
 
 export default function UserForm({ onCreated, onCancel }: UserFormProps) {
@@ -113,6 +114,21 @@ export default function UserForm({ onCreated, onCancel }: UserFormProps) {
             className={inputClass("phoneNumber")}
           />
           {errorFor("phoneNumber")}
+        </div>
+
+        <div>
+          <label htmlFor="user-password" className="form-label">Password</label>
+          <input
+            id="user-password"
+            type="password"
+            autoComplete="new-password"
+            value={form.password}
+            maxLength={USER_LIMITS.passwordMax}
+            onChange={(e) => updateField("password", e.target.value)}
+            placeholder={`Min ${USER_LIMITS.passwordMin} characters`}
+            className={inputClass("password")}
+          />
+          {errorFor("password")}
         </div>
 
         <div>

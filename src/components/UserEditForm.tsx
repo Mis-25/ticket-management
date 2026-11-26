@@ -26,6 +26,7 @@ export default function UserEditForm({ user, isSelf, onSaved, onCancel }: UserEd
   const [phoneNumber, setPhoneNumber] = useState(user.phoneNumber);
   const [roleId, setRoleId] = useState<RoleId>(user.roleId);
   const [status, setStatus] = useState<UserStatus>(user.status);
+  const [password, setPassword] = useState("");
   const [errors, setErrors] = useState<UserErrors>({});
   const [submitError, setSubmitError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -36,6 +37,7 @@ export default function UserEditForm({ user, isSelf, onSaved, onCancel }: UserEd
     setSubmitError("");
 
     const input: UpdateUserInput = { name, phoneNumber, roleId, status };
+    if (password) input.password = password;
 
     const validationErrors = validateUserUpdate(input);
     setErrors(validationErrors);
@@ -95,6 +97,21 @@ export default function UserEditForm({ user, isSelf, onSaved, onCancel }: UserEd
             className={inputClass("phoneNumber")}
           />
           {errorFor("phoneNumber")}
+        </div>
+
+        <div>
+          <label htmlFor="edit-password" className="form-label">New Password</label>
+          <input
+            id="edit-password"
+            type="password"
+            autoComplete="new-password"
+            value={password}
+            maxLength={USER_LIMITS.passwordMax}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Leave blank to keep the current password"
+            className={inputClass("password")}
+          />
+          {errorFor("password")}
         </div>
 
         <div className="details-grid">

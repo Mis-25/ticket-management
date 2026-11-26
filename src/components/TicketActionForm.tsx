@@ -74,7 +74,7 @@ export function getActionConfig(action: TicketAction, ticket: TicketDetail): Act
       return {
         title: "Reopen Ticket",
         submitLabel: "Reopen Ticket",
-        help: "The previous conversation and history stay. The staff member stays assigned; the manager can change it.",
+        help: "Status will change to Open. The previous conversation and history stay. The staff member stays assigned; the manager can change it.",
         reasonLabel: "Reopen reason",
         reasonRequired: true,
       };

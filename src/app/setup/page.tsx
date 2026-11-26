@@ -4,10 +4,10 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { ApiError, errorMessage } from "@/lib/apiClient";
-import { createFirstAdmin } from "@/lib/userApi";
+import { createFirstAdmin, getSetupStatus } from "@/lib/userApi";
 import { ROLES, USER_LIMITS, UserErrors, validateUser } from "@/types/user";
 
-const EMPTY = { name: "", email: "", phoneNumber: "" };
+const EMPTY = { name: "", email: "", phoneNumber: "", password: "" };
 
 export default function SetupPage() {
   const router = useRouter();
@@ -18,7 +18,14 @@ export default function SetupPage() {
   const [isCreating, setIsCreating] = useState(false);
 
   useEffect(() => {
-    if (!isLoading && user) router.replace("/tickets");
+    if (isLoading) return;
+    if (user) {
+      router.replace("/tickets");
+      return;
+    }
+    getSetupStatus()
+      .then((s) => !s.needed && router.replace("/login"))
+      .catch(() => {});
   }, [isLoading, user, router]);
 
   async function handleCreateAdmin(event: React.SyntheticEvent<HTMLFormElement>) {
@@ -64,7 +71,7 @@ export default function SetupPage() {
         <h2 className="page-title">Create Admin</h2>
         <p className="auth-subtitle">
           One-time setup. The Admin manages tickets and users. If the email already
-          exists, that user becomes the Admin.
+          exists, that user becomes the Admin and gets this password.
         </p>
 
         {error && <p className="alert-error" role="alert">{error}</p>}
@@ -74,6 +81,7 @@ export default function SetupPage() {
             {field("name", "Name", "text", USER_LIMITS.name)}
             {field("email", "Email", "email", USER_LIMITS.email)}
             {field("phoneNumber", "Phone Number", "tel", USER_LIMITS.phoneNumber)}
+            {field("password", "Password", "password", USER_LIMITS.passwordMax)}
             <button type="submit" disabled={isCreating} className="btn-submit btn-block">
               {isCreating ? "Creating..." : "Create Admin"}
             </button>

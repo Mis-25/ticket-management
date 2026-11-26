@@ -10,13 +10,14 @@ import {
   useState,
 } from "react";
 import { ApiError } from "@/lib/apiClient";
-import { getMe } from "@/lib/userApi";
+import { getMe, logout as logoutRequest } from "@/lib/userApi";
 import { SessionUser } from "@/types/user";
 
 interface AuthState {
   user: SessionUser | null;
   isLoading: boolean;
   refresh: () => Promise<SessionUser | null>;
+  logout: () => Promise<void>;
   can: (permission: string) => boolean;
 }
 
@@ -53,13 +54,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  const logout = useCallback(async () => {
+    try {
+      await logoutRequest();
+    } finally {
+      setUser(null);
+    }
+  }, []);
+
   const can = useCallback(
     (permission: string) => !!user?.permissions.includes(permission),
     [user]
   );
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, refresh, can }}>
+    <AuthContext.Provider value={{ user, isLoading, refresh, logout, can }}>
       {children}
     </AuthContext.Provider>
   );
@@ -78,7 +87,7 @@ export function useRequireAuth(permission?: string): SessionUser | null {
 
   useEffect(() => {
     if (isLoading) return;
-    if (!user) router.replace("/setup");
+    if (!user) router.replace("/login");
     else if (permission && !can(permission)) router.replace("/tickets");
   }, [isLoading, user, permission, can, router]);
 

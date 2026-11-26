@@ -13,7 +13,7 @@ export class HttpError extends Error {
 }
 
 export const unauthorized = () =>
-  new HttpError(401, "Please select a user to continue.");
+  new HttpError(401, "Please log in to continue.");
 export const forbidden = (message = "You are not allowed to do this.") =>
   new HttpError(403, message);
 export const notFound = (message = "Not found.") => new HttpError(404, message);

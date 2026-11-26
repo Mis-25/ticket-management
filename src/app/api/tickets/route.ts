@@ -34,6 +34,7 @@ export async function GET(request: Request) {
     const assignedTo = query.get("assignedTo");
     if (assignedTo) {
       if (assignedTo === "unassigned") filters.assignedTo = "unassigned";
+      else if (assignedTo === "me") filters.assignedTo = user.id;
       else if (/^\d+$/.test(assignedTo)) filters.assignedTo = Number(assignedTo);
       else throw badRequest("Invalid assignee filter.");
     }

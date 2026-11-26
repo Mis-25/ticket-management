@@ -114,7 +114,7 @@ export interface TicketFilters {
   status?: TicketStatus;
   priority?: TicketPriority;
   processId?: number;
-  assignedTo?: number | "unassigned";
+  assignedTo?: number | "unassigned" | "me";
   from?: string;
   to?: string;
 }

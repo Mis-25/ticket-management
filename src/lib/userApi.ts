@@ -40,5 +40,12 @@ export const deleteUser = (id: number) => deleteJson<{ ok: true }>(`/api/users/$
 
 export const getMe = () => apiFetch<SessionUser>("/api/auth/me");
 
+export const login = (email: string, password: string) =>
+  postJson<{ ok: true }>("/api/auth/login", { email, password });
+
+export const logout = () => postJson<{ ok: true }>("/api/auth/logout", {});
+
+export const getSetupStatus = () => apiFetch<{ needed: boolean }>("/api/setup");
+
 export const createFirstAdmin = (input: Omit<CreateUserInput, "roleId">) =>
   postJson<{ ok: true }>("/api/setup", input);

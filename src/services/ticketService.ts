@@ -290,7 +290,7 @@ async function logStatusChange(
 }
 
 export async function createTicket(
-  _user: SessionUser,
+  user: SessionUser,
   input: CreateTicketInput
 ): Promise<Ticket> {
   return withTransaction(async (client) => {
@@ -308,7 +308,7 @@ export async function createTicket(
       });
     }
 
-    const creatorId = manager.id;
+    const creatorId = user.id;
 
     const inserted = await client.query<{ id: number }>(
       `INSERT INTO tickets (title, description, priority, process_id, manager_id, status, created_by)
@@ -540,7 +540,7 @@ export async function performTicketAction(
       case "reopen": {
         if (!can.reopen) throw notAllowed();
         reason = requireReason(input.reason, "Reopen reason");
-        newStatus = "Reopened";
+        newStatus = "Open";
         sets.push("reopened_at = NOW()", "closed_at = NULL", "resolved_at = NULL");
         activity = {
           actionType: "Ticket Reopened",
