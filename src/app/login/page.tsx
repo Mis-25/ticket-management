@@ -9,6 +9,15 @@ import { USER_LIMITS } from "@/types/user";
 
 type LoginErrors = Partial<Record<"email" | "password", string>>;
 
+// Where to go after login: the page the user was trying to open (e.g. a
+// pasted ticket link). Only same-site paths are accepted.
+function afterLoginPath(): string {
+  const next = new URLSearchParams(window.location.search).get("next") ?? "";
+  return next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/\\")
+    ? next
+    : "/tickets";
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const { user, isLoading, refresh } = useAuth();
@@ -21,7 +30,7 @@ export default function LoginPage() {
   useEffect(() => {
     if (isLoading) return;
     if (user) {
-      router.replace("/tickets");
+      router.replace(afterLoginPath());
       return;
     }
     getSetupStatus()
@@ -42,7 +51,7 @@ export default function LoginPage() {
     try {
       await login(email, password);
       await refresh();
-      router.replace("/tickets");
+      router.replace(afterLoginPath());
     } catch (err) {
       if (err instanceof ApiError && Object.keys(err.fields).length) setErrors(err.fields);
       else setError(errorMessage(err, "Could not log in."));

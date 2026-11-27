@@ -87,8 +87,10 @@ export function useRequireAuth(permission?: string): SessionUser | null {
 
   useEffect(() => {
     if (isLoading) return;
-    if (!user) router.replace("/login");
-    else if (permission && !can(permission)) router.replace("/tickets");
+    if (!user) {
+      const here = window.location.pathname + window.location.search;
+      router.replace(here === "/" ? "/login" : `/login?next=${encodeURIComponent(here)}`);
+    } else if (permission && !can(permission)) router.replace("/tickets");
   }, [isLoading, user, permission, can, router]);
 
   return allowed ? user : null;
